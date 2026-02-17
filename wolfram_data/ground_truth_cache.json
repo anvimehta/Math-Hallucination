@@ -1,0 +1,22 @@
+{
+  "sqrt((34*52 + 73) - 144/4) + ln(e^5) + cos(0)^2": {
+    "raw_plaintext": "6 + 19 sqrt(5)",
+    "definite_result": null
+  },
+  "integrate x^4 sin(x)": {
+    "raw_plaintext": "integral x^4 sin(x) dx = 4 x (x^2 - 6) sin(x) - (x^4 - 12 x^2 + 24) cos(x) + constant",
+    "definite_result": "integral_0^\u03c0 x^4 sin(x) dx = 48 - 12 \u03c0^2 + \u03c0^4\u224826.9738"
+  },
+  "solve x^2 - 5x + 6 = 0": {
+    "raw_plaintext": "x = 2",
+    "definite_result": null
+  },
+  "derivative of x^3 * e^x": {
+    "raw_plaintext": "d/dx(x^3 e^x) = e^x x^2 (x + 3)",
+    "definite_result": "integral_(-3)^0 e^x x^2 (3 + x) dx = 27/e^3\u22481.34425"
+  },
+  "limit of (sin(x)/x) as x goes to 0": {
+    "raw_plaintext": "lim_(x->0) sin(x)/x = 1",
+    "definite_result": null
+  }
+}

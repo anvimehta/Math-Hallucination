@@ -1,0 +1,260 @@
+{
+  "representation": "FOPC-style facts + rule-based deduction",
+  "questions": [
+    {
+      "id": "q1",
+      "facts": [
+        {
+          "predicate": "question",
+          "args": [
+            "q1"
+          ],
+          "value": "sqrt((34*52 + 73) - 144/4) + ln(e^5) + cos(0)^2"
+        },
+        {
+          "predicate": "ground_truth",
+          "args": [
+            "q1"
+          ],
+          "value": "6 + 19 sqrt(5)"
+        },
+        {
+          "predicate": "llm_answer",
+          "args": [
+            "q1"
+          ],
+          "value": "\\cos(0) = 1 \\quad \\Rightarrow \\quad \\cos(0)^2 = 1^2 = 1"
+        },
+        {
+          "predicate": "llm_reasoning",
+          "args": [
+            "q1"
+          ],
+          "value": "Let's solve the expression step by step:\n\n1. **Calculate \\( 34 \\times 52 \\)**:\n   \\[\n   34 \\times 52 = 1768\n   \\]\n\n2. **Add 73 to the result**:\n   \\[\n   1768 + 73 = 1841\n   \\]\n\n3. **Calculate \\( 144 /..."
+        }
+      ],
+      "reasoning_trace": [
+        {
+          "rule": "numeric_match",
+          "result": false,
+          "reason": "numeric_mismatch(w=[6.0, 19.0, 5.0], l=[0.0, 1.0, 0.0, 2.0, 1.0, 2.0, 1.0])"
+        },
+        {
+          "rule": "symbolic_match",
+          "result": false,
+          "reason": "symbolic_mismatch"
+        },
+        {
+          "inference": "verdict",
+          "predicate": "hallucinating",
+          "premise": "numeric_match \u2228 symbolic_match"
+        }
+      ],
+      "verdict": "hallucinating"
+    },
+    {
+      "id": "q2",
+      "facts": [
+        {
+          "predicate": "question",
+          "args": [
+            "q2"
+          ],
+          "value": "integrate x^4 sin(x)"
+        },
+        {
+          "predicate": "ground_truth",
+          "args": [
+            "q2"
+          ],
+          "value": "integral x^4 sin(x) dx = 4 x (x^2 - 6) sin(x) - (x^4 - 12 x^2 + 24) cos(x) + constant"
+        },
+        {
+          "predicate": "llm_answer",
+          "args": [
+            "q2"
+          ],
+          "value": "\\int x^4 \\sin(x) \\, dx = -x^4 \\cos(x) + 4x^3 \\sin(x) + 12x^2 \\cos(x) - 8x \\sin(x) - 8\\cos(x) + C"
+        },
+        {
+          "predicate": "llm_reasoning",
+          "args": [
+            "q2"
+          ],
+          "value": "To solve the integral \\( \\int x^4 \\sin(x) \\, dx \\), we will use integration by parts multiple times. The formula for integration by parts is:\n\n\\[\n\\int u \\, dv = uv - \\int v \\, du\n\\]\n\n### Step 1: Choos..."
+        }
+      ],
+      "reasoning_trace": [
+        {
+          "rule": "numeric_match",
+          "result": false,
+          "reason": "numeric_mismatch(w=[4.0, 4.0, 2.0, 6.0, 4.0, 12.0, 2.0, 24.0], l=[4.0, 4.0, 4.0, 3.0, 12.0, 2.0, 8.0, 8.0])"
+        },
+        {
+          "rule": "symbolic_match",
+          "result": false,
+          "reason": "symbolic_mismatch"
+        },
+        {
+          "inference": "verdict",
+          "predicate": "hallucinating",
+          "premise": "numeric_match \u2228 symbolic_match"
+        }
+      ],
+      "verdict": "hallucinating"
+    },
+    {
+      "id": "q3",
+      "facts": [
+        {
+          "predicate": "question",
+          "args": [
+            "q3"
+          ],
+          "value": "solve x^2 - 5x + 6 = 0"
+        },
+        {
+          "predicate": "ground_truth",
+          "args": [
+            "q3"
+          ],
+          "value": "x = 2"
+        },
+        {
+          "predicate": "llm_answer",
+          "args": [
+            "q3"
+          ],
+          "value": "x = 2 \\quad \\text{and} \\quad x = 3"
+        },
+        {
+          "predicate": "llm_reasoning",
+          "args": [
+            "q3"
+          ],
+          "value": "To solve the quadratic equation \\( x^2 - 5x + 6 = 0 \\), we can factor the equation.\n\n1. **Identify the coefficients**: The equation is in the standard form \\( ax^2 + bx + c = 0 \\), where \\( a = 1 \\), ..."
+        }
+      ],
+      "reasoning_trace": [
+        {
+          "rule": "numeric_match",
+          "result": false,
+          "reason": "numeric_mismatch(w=[2.0], l=[2.0, 3.0])"
+        },
+        {
+          "rule": "symbolic_match",
+          "result": true,
+          "reason": "symbolic_substring_match"
+        },
+        {
+          "inference": "verdict",
+          "predicate": "not_hallucinating",
+          "premise": "numeric_match \u2228 symbolic_match"
+        }
+      ],
+      "verdict": "not_hallucinating"
+    },
+    {
+      "id": "q4",
+      "facts": [
+        {
+          "predicate": "question",
+          "args": [
+            "q4"
+          ],
+          "value": "derivative of x^3 * e^x"
+        },
+        {
+          "predicate": "ground_truth",
+          "args": [
+            "q4"
+          ],
+          "value": "d/dx(x^3 e^x) = e^x x^2 (x + 3)"
+        },
+        {
+          "predicate": "llm_answer",
+          "args": [
+            "q4"
+          ],
+          "value": "f'(x) = e^x(3x^2 + x^3)"
+        },
+        {
+          "predicate": "llm_reasoning",
+          "args": [
+            "q4"
+          ],
+          "value": "To find the derivative of the function \\( f(x) = x^3 e^x \\), we will use the product rule. The product rule states that if you have two functions \\( u(x) \\) and \\( v(x) \\), then the derivative of thei..."
+        }
+      ],
+      "reasoning_trace": [
+        {
+          "rule": "numeric_match",
+          "result": true,
+          "reason": "numeric_match(last: 3.0 ~ 3.0)"
+        },
+        {
+          "rule": "symbolic_match",
+          "result": false,
+          "reason": "symbolic_mismatch"
+        },
+        {
+          "inference": "verdict",
+          "predicate": "not_hallucinating",
+          "premise": "numeric_match \u2228 symbolic_match"
+        }
+      ],
+      "verdict": "not_hallucinating"
+    },
+    {
+      "id": "q5",
+      "facts": [
+        {
+          "predicate": "question",
+          "args": [
+            "q5"
+          ],
+          "value": "limit of (sin(x)/x) as x goes to 0"
+        },
+        {
+          "predicate": "ground_truth",
+          "args": [
+            "q5"
+          ],
+          "value": "lim_(x->0) sin(x)/x = 1"
+        },
+        {
+          "predicate": "llm_answer",
+          "args": [
+            "q5"
+          ],
+          "value": "\\lim_{x \\to 0} \\frac{\\sin(x)}{x} = 1"
+        },
+        {
+          "predicate": "llm_reasoning",
+          "args": [
+            "q5"
+          ],
+          "value": "To find the limit of \\(\\frac{\\sin(x)}{x}\\) as \\(x\\) approaches 0, we can use the following reasoning:\n\n1. **Direct Substitution**: If we directly substitute \\(x = 0\\) into \\(\\frac{\\sin(x)}{x}\\), we ge..."
+        }
+      ],
+      "reasoning_trace": [
+        {
+          "rule": "numeric_match",
+          "result": true,
+          "reason": "numeric_match(last: 1.0 ~ 1.0)"
+        },
+        {
+          "rule": "symbolic_match",
+          "result": false,
+          "reason": "symbolic_mismatch"
+        },
+        {
+          "inference": "verdict",
+          "predicate": "not_hallucinating",
+          "premise": "numeric_match \u2228 symbolic_match"
+        }
+      ],
+      "verdict": "not_hallucinating"
+    }
+  ]
+}

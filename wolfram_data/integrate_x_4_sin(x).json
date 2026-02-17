@@ -1,0 +1,86 @@
+{
+    "query": "integrate x^4 sin(x)",
+    "pods": [
+        {
+            "title": "Indefinite integral",
+            "primary": true,
+            "subpods": [
+                {
+                    "step_index": 0,
+                    "plaintext": "integral x^4 sin(x) dx = 4 x (x^2 - 6) sin(x) - (x^4 - 12 x^2 + 24) cos(x) + constant",
+                    "img_src": "https://public5c.wolframalpha.com/files/GIF_1azqbaafip2.gif",
+                    "img_local": "images/integrate_x_4_sin(x)/0.gif"
+                }
+            ]
+        },
+        {
+            "title": "Plot",
+            "primary": false,
+            "subpods": [
+                {
+                    "img_src": "https://public5c.wolframalpha.com/files/GIF_1azqkusg9yv.gif",
+                    "img_local": "images/integrate_x_4_sin(x)/1.gif"
+                },
+                {
+                    "img_src": "https://public5c.wolframalpha.com/files/GIF_1aztc2ztjb9.gif",
+                    "img_local": "images/integrate_x_4_sin(x)/2.gif"
+                }
+            ]
+        },
+        {
+            "title": "Alternate form of the integral",
+            "primary": false,
+            "subpods": [
+                {
+                    "step_index": 0,
+                    "plaintext": "(4 x^3 - 24 x) sin(x) + (-x^4 + 12 x^2 - 24) cos(x) + constant",
+                    "img_src": "https://public5c.wolframalpha.com/files/GIF_1azqwrx58s5.gif",
+                    "img_local": "images/integrate_x_4_sin(x)/3.gif"
+                },
+                {
+                    "step_index": 1,
+                    "plaintext": "2 i (e^(-i x) - e^(i x)) x (x^2 - 6) - 1/2 (e^(-i x) + e^(i x)) (x^4 - 12 x^2 + 24) + constant",
+                    "img_src": "https://public5c.wolframalpha.com/files/GIF_1azqyw9rsm4.gif",
+                    "img_local": "images/integrate_x_4_sin(x)/4.gif"
+                }
+            ]
+        },
+        {
+            "title": "Reduced trigonometric form",
+            "primary": false,
+            "subpods": [
+                {
+                    "step_index": 0,
+                    "plaintext": "-cos(x) 24 + 12 cos(x) x^2 - cos(x) x^4 - 24 x sin(x) + 4 x^3 sin(x) + constant",
+                    "img_src": "https://public5c.wolframalpha.com/files/GIF_1azr11llc0y.gif",
+                    "img_local": "images/integrate_x_4_sin(x)/5.gif"
+                }
+            ]
+        },
+        {
+            "title": "Series expansion of the integral at x = 0",
+            "primary": false,
+            "subpods": [
+                {
+                    "step_index": 0,
+                    "plaintext": "-24 + x^6/6 - x^8/48 + O(x^9)\n(Taylor series)",
+                    "img_src": "https://public5c.wolframalpha.com/files/GIF_1azqab4hpw4.gif",
+                    "img_local": "images/integrate_x_4_sin(x)/6.gif"
+                }
+            ]
+        },
+        {
+            "title": "Definite integral",
+            "primary": false,
+            "subpods": [
+                {
+                    "step_index": 0,
+                    "plaintext": "integral_0^\u03c0 x^4 sin(x) dx = 48 - 12 \u03c0^2 + \u03c0^4\u224826.9738",
+                    "img_src": "https://public5c.wolframalpha.com/files/GIF_1azrnu72izs.gif",
+                    "img_local": "images/integrate_x_4_sin(x)/7.gif"
+                }
+            ]
+        }
+    ],
+    "definite_result": "integral_0^\u03c0 x^4 sin(x) dx = 48 - 12 \u03c0^2 + \u03c0^4\u224826.9738"
+}

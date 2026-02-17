@@ -1,0 +1,141 @@
+{
+    "query": "sqrt((34*52 + 73) - 144/4) + ln(e^5) + cos(0)^2",
+    "pods": [
+        {
+            "title": "Input",
+            "primary": false,
+            "subpods": [
+                {
+                    "step_index": 0,
+                    "plaintext": "sqrt((34\u00d752 + 73) - 144/4) + log(e^5) + cos^2(0)",
+                    "img_src": "https://public5c.wolframalpha.com/files/GIF_1b5drafiuvx.gif",
+                    "img_local": "images/sqrt((34_52_+_73)_-_144_4)_+_ln(e_5)_+_cos(0)_2/0.gif"
+                }
+            ]
+        },
+        {
+            "title": "Exact result",
+            "primary": true,
+            "subpods": [
+                {
+                    "step_index": 0,
+                    "plaintext": "6 + 19 sqrt(5)",
+                    "img_src": "https://public5c.wolframalpha.com/files/GIF_1b5e3dvplj6.gif",
+                    "img_local": "images/sqrt((34_52_+_73)_-_144_4)_+_ln(e_5)_+_cos(0)_2/1.gif"
+                }
+            ]
+        },
+        {
+            "title": "Decimal approximation",
+            "primary": true,
+            "subpods": [
+                {
+                    "step_index": 0,
+                    "plaintext": "48.485291572496004231774299705894248473371748832618988761147047662...",
+                    "img_src": "https://public5c.wolframalpha.com/files/GIF_1b5dwru7gno.gif",
+                    "img_local": "images/sqrt((34_52_+_73)_-_144_4)_+_ln(e_5)_+_cos(0)_2/2.gif"
+                }
+            ]
+        },
+        {
+            "title": "Expanded logarithmic form",
+            "primary": false,
+            "subpods": [
+                {
+                    "step_index": 0,
+                    "plaintext": "6 + 19 sqrt(5)",
+                    "img_src": "https://public5c.wolframalpha.com/files/GIF_1b5e642h177.gif",
+                    "img_local": "images/sqrt((34_52_+_73)_-_144_4)_+_ln(e_5)_+_cos(0)_2/3.gif"
+                }
+            ]
+        },
+        {
+            "title": "Number line",
+            "primary": false,
+            "subpods": [
+                {
+                    "img_src": "https://public5c.wolframalpha.com/files/GIF_1b5dy7bzg21.gif",
+                    "img_local": "images/sqrt((34_52_+_73)_-_144_4)_+_ln(e_5)_+_cos(0)_2/4.gif"
+                }
+            ]
+        },
+        {
+            "title": "Continued fraction",
+            "primary": false,
+            "subpods": [
+                {
+                    "step_index": 0,
+                    "plaintext": "[48; 2, 16, 2, 84^_]",
+                    "img_src": "https://public5c.wolframalpha.com/files/GIF_1b5dxf3oci6.gif",
+                    "img_local": "images/sqrt((34_52_+_73)_-_144_4)_+_ln(e_5)_+_cos(0)_2/5.gif"
+                }
+            ]
+        },
+        {
+            "title": "Alternative representation",
+            "primary": false,
+            "subpods": [
+                {
+                    "step_index": 0,
+                    "plaintext": "sqrt((34 52 + 73) - 144/4) + log(e^5) + cos^2(0) = log(e^5) + 1^2 + sqrt(1841 - 144/4)",
+                    "img_src": "https://public5c.wolframalpha.com/files/GIF_1b5e5pjsdr5.gif",
+                    "img_local": "images/sqrt((34_52_+_73)_-_144_4)_+_ln(e_5)_+_cos(0)_2/6.gif"
+                },
+                {
+                    "step_index": 1,
+                    "plaintext": "sqrt((34 52 + 73) - 144/4) + log(e^5) + cos^2(0) = log(e, e^5) + 1^2 + sqrt(1841 - 144/4)",
+                    "img_src": "https://public5c.wolframalpha.com/files/GIF_1b5e7ah3mog.gif",
+                    "img_local": "images/sqrt((34_52_+_73)_-_144_4)_+_ln(e_5)_+_cos(0)_2/7.gif"
+                },
+                {
+                    "step_index": 2,
+                    "plaintext": "sqrt((34 52 + 73) - 144/4) + log(e^5) + cos^2(0) = log(a) log(a, e^5) + 1^2 + sqrt(1841 - 144/4)",
+                    "img_src": "https://public5c.wolframalpha.com/files/GIF_1b5e8nfspxv.gif",
+                    "img_local": "images/sqrt((34_52_+_73)_-_144_4)_+_ln(e_5)_+_cos(0)_2/8.gif"
+                }
+            ]
+        },
+        {
+            "title": "Series representation",
+            "primary": false,
+            "subpods": [
+                {
+                    "step_index": 0,
+                    "plaintext": "sqrt((34 52 + 73) - 144/4) + log(e^5) + cos^2(0) = J_0(0)^2 + log(-1 + e^5) + 4 ( sum_(k=1)^\u221e (-1)^k J_(2 k)(0))^2 + sum_(k=1)^\u221e (-1)^k (-(-1 + e^5)^(-k)/k + 4 J_0(0) J_(2 k)(0)) + exp(i \u03c0 floor(arg(1805 - x)/(2 \u03c0))) sqrt(x) sum_(k=0)^\u221e ((-1)^k (1805 - x)^k x^(-k) (-1/2)_k)/(k!) for (x element R and x<0)",
+                    "img_src": "https://public5c.wolframalpha.com/files/GIF_1b5f0bob59z.gif",
+                    "img_local": "images/sqrt((34_52_+_73)_-_144_4)_+_ln(e_5)_+_cos(0)_2/9.gif"
+                },
+                {
+                    "step_index": 1,
+                    "plaintext": "sqrt((34 52 + 73) - 144/4) + log(e^5) + cos^2(0) = J_0(0)^2 + log(-1 + e^5) + 4 ( sum_(k=1)^\u221e (-1)^k J_(2 k)(0))^2 + sum_(k=1)^\u221e (-1)^k (-(-1 + e^5)^(-k)/k + 4 J_0(0) J_(2 k)(0)) + (1/z_0)^(1/2 floor(arg(1805 - z_0)/(2 \u03c0))) z_0^(1/2 + 1/2 floor(arg(1805 - z_0)/(2 \u03c0))) sum_(k=0)^\u221e ((-1)^k (-1/2)_k (1805 - z_0)^k z_0^(-k))/(k!)",
+                    "img_src": "https://public5c.wolframalpha.com/files/GIF_1b5f2iay649.gif",
+                    "img_local": "images/sqrt((34_52_+_73)_-_144_4)_+_ln(e_5)_+_cos(0)_2/10.gif"
+                }
+            ]
+        },
+        {
+            "title": "Integral representation",
+            "primary": false,
+            "subpods": [
+                {
+                    "step_index": 0,
+                    "plaintext": "sqrt((34 52 + 73) - 144/4) + log(e^5) + cos^2(0) = 1 + log(e^5) + sqrt(1805)",
+                    "img_src": "https://public5c.wolframalpha.com/files/GIF_1b5fgs492tp.gif",
+                    "img_local": "images/sqrt((34_52_+_73)_-_144_4)_+_ln(e_5)_+_cos(0)_2/11.gif"
+                },
+                {
+                    "step_index": 1,
+                    "plaintext": "sqrt((34 52 + 73) - 144/4) + log(e^5) + cos^2(0) = 1 + integral_1^(e^5) 1/t dt + sqrt(1805)",
+                    "img_src": "https://public5c.wolframalpha.com/files/GIF_1b5fiaywkeo.gif",
+                    "img_local": "images/sqrt((34_52_+_73)_-_144_4)_+_ln(e_5)_+_cos(0)_2/12.gif"
+                },
+                {
+                    "step_index": 2,
+                    "plaintext": "sqrt((34 52 + 73) - 144/4) + log(e^5) + cos^2(0) = ( integral_(\u03c0/2)^0 sin(t) dt)^2 + log(e^5) + sqrt(1805)",
+                    "img_src": "https://public5c.wolframalpha.com/files/GIF_1b5fjx2xbqr.gif",
+                    "img_local": "images/sqrt((34_52_+_73)_-_144_4)_+_ln(e_5)_+_cos(0)_2/13.gif"
+                }
+            ]
+        }
+    ]
+}
