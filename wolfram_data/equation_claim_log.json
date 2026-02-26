@@ -1,167 +1,238 @@
 {
-  "prompt_target": 67.0,
-  "llm_equation": "(5 * 13) + (sqrt(144) * 2) - (ln(1) * 67) + (cos(0) * 2)",
-  "claimed_target": 67.0,
-  "actual_value": 91.0,
+  "prompt_target": 99.0,
+  "llm_equation": "sqrt(10000) + ln(e^2) * 10 - cos(0) * 1.0 * 1.0",
+  "claimed_target": 99.0,
+  "actual_value": 119.0,
   "verdict": "hallucinating",
   "step_by_step": [
     {
       "step_index": 1,
-      "subexpr": "(5 * 13)",
-      "value": 65.0
+      "subexpr": "sqrt(10000)",
+      "value": 100.0,
+      "op": "sqrt",
+      "children": [
+        "10000"
+      ]
     },
     {
       "step_index": 2,
-      "subexpr": "sqrt(144)",
-      "value": 12.0
+      "subexpr": "(e ** 2)",
+      "value": 7.3890560989306495,
+      "op": "pow",
+      "children": [
+        "e",
+        "2"
+      ]
     },
     {
       "step_index": 3,
-      "subexpr": "(sqrt(144) * 2)",
-      "value": 24.0
+      "subexpr": "log((e ** 2))",
+      "value": 2.0,
+      "op": "log",
+      "children": [
+        "(e ** 2)"
+      ]
     },
     {
       "step_index": 4,
-      "subexpr": "((5 * 13) + (sqrt(144) * 2))",
-      "value": 89.0
+      "subexpr": "(log((e ** 2)) * 10)",
+      "value": 20.0,
+      "op": "mult",
+      "children": [
+        "log((e ** 2))",
+        "10"
+      ]
     },
     {
       "step_index": 5,
-      "subexpr": "log(1)",
-      "value": 0.0
+      "subexpr": "(sqrt(10000) + (log((e ** 2)) * 10))",
+      "value": 120.0,
+      "op": "add",
+      "children": [
+        "sqrt(10000)",
+        "(log((e ** 2)) * 10)"
+      ]
     },
     {
       "step_index": 6,
-      "subexpr": "(log(1) * 67)",
-      "value": 0.0
+      "subexpr": "cos(0)",
+      "value": 1.0,
+      "op": "cos",
+      "children": [
+        "0"
+      ]
     },
     {
       "step_index": 7,
-      "subexpr": "(((5 * 13) + (sqrt(144) * 2)) - (log(1) * 67))",
-      "value": 89.0
+      "subexpr": "(cos(0) * 1.0)",
+      "value": 1.0,
+      "op": "mult",
+      "children": [
+        "cos(0)",
+        "1.0"
+      ]
     },
     {
       "step_index": 8,
-      "subexpr": "cos(0)",
-      "value": 1.0
+      "subexpr": "((cos(0) * 1.0) * 1.0)",
+      "value": 1.0,
+      "op": "mult",
+      "children": [
+        "(cos(0) * 1.0)",
+        "1.0"
+      ]
     },
     {
       "step_index": 9,
-      "subexpr": "(cos(0) * 2)",
-      "value": 2.0
-    },
-    {
-      "step_index": 10,
-      "subexpr": "((((5 * 13) + (sqrt(144) * 2)) - (log(1) * 67)) + (cos(0) * 2))",
-      "value": 91.0
+      "subexpr": "((sqrt(10000) + (log((e ** 2)) * 10)) - ((cos(0) * 1.0) * 1.0))",
+      "value": 119.0,
+      "op": "sub",
+      "children": [
+        "(sqrt(10000) + (log((e ** 2)) * 10))",
+        "((cos(0) * 1.0) * 1.0)"
+      ]
     }
   ],
+  "hallucination_location": [
+    {
+      "step_index": 1,
+      "subexpr": "sqrt(10000)",
+      "actual_value": 100.0,
+      "required_value_to_reach_target": 80.0,
+      "discrepancy": -20.0,
+      "abs_discrepancy": 20.0
+    },
+    {
+      "step_index": 4,
+      "subexpr": "(log((e ** 2)) * 10)",
+      "actual_value": 20.0,
+      "required_value_to_reach_target": 0.0,
+      "discrepancy": -20.0,
+      "abs_discrepancy": 20.0
+    },
+    {
+      "step_index": 5,
+      "subexpr": "(sqrt(10000) + (log((e ** 2)) * 10))",
+      "actual_value": 120.0,
+      "required_value_to_reach_target": 100.0,
+      "discrepancy": -20.0,
+      "abs_discrepancy": 20.0
+    },
+    {
+      "step_index": 8,
+      "subexpr": "((cos(0) * 1.0) * 1.0)",
+      "actual_value": 1.0,
+      "required_value_to_reach_target": 21.0,
+      "discrepancy": 20.0,
+      "abs_discrepancy": 20.0
+    },
+    {
+      "step_index": 9,
+      "subexpr": "((sqrt(10000) + (log((e ** 2)) * 10)) - ((cos(0) * 1.0) * 1.0))",
+      "actual_value": 119.0,
+      "required_value_to_reach_target": 99.0,
+      "discrepancy": -20.0,
+      "abs_discrepancy": 20.0
+    }
+  ],
+  "where_diverges_explanation": "To get 99.0, the equation would need each part to have different values. Our derived back-solve (no ChatGPT steps):\n  \u2022 sqrt(10000): actual = 100, would need = 80 (gap -20)\n  \u2022 (log((e ** 2)) * 10): actual = 20, would need = 0 (gap -20)\n  \u2022 (sqrt(10000) + (log((e ** 2)) * 10)): actual = 120, would need = 100 (gap -20)\n  \u2022 ((cos(0) * 1.0) * 1.0): actual = 1, would need = 21 (gap +20)\n  \u2022 ((sqrt(10000) + (log((e ** 2)) * 10)) - ((cos(0) * 1.0) *...: actual = 119, would need = 99 (gap -20)\nLargest discrepancy is in the first listed sub-expression(s); that is where the equation diverges from the claimed 99.0.",
   "fopc": [
     {
       "predicate": "step",
       "args": [
         1,
-        "(5 * 13)"
+        "sqrt(10000)"
       ],
-      "value": 65.0,
-      "form": "step(1, '(5 * 13)', 65.0)"
+      "value": 100.0,
+      "form": "step(1, 'sqrt(10000)', 100.0)"
     },
     {
       "predicate": "step",
       "args": [
         2,
-        "sqrt(144)"
+        "(e ** 2)"
       ],
-      "value": 12.0,
-      "form": "step(2, 'sqrt(144)', 12.0)"
+      "value": 7.3890560989306495,
+      "form": "step(2, '(e ** 2)', 7.3890560989306495)"
     },
     {
       "predicate": "step",
       "args": [
         3,
-        "(sqrt(144) * 2)"
+        "log((e ** 2))"
       ],
-      "value": 24.0,
-      "form": "step(3, '(sqrt(144) * 2)', 24.0)"
+      "value": 2.0,
+      "form": "step(3, 'log((e ** 2))', 2.0)"
     },
     {
       "predicate": "step",
       "args": [
         4,
-        "((5 * 13) + (sqrt(144) * 2))"
+        "(log((e ** 2)) * 10)"
       ],
-      "value": 89.0,
-      "form": "step(4, '((5 * 13) + (sqrt(144) * 2))', 89.0)"
+      "value": 20.0,
+      "form": "step(4, '(log((e ** 2)) * 10)', 20.0)"
     },
     {
       "predicate": "step",
       "args": [
         5,
-        "log(1)"
+        "(sqrt(10000) + (log((e ** 2)) * 10))"
       ],
-      "value": 0.0,
-      "form": "step(5, 'log(1)', 0.0)"
+      "value": 120.0,
+      "form": "step(5, '(sqrt(10000) + (log((e ** 2)) * 10))', 120.0)"
     },
     {
       "predicate": "step",
       "args": [
         6,
-        "(log(1) * 67)"
+        "cos(0)"
       ],
-      "value": 0.0,
-      "form": "step(6, '(log(1) * 67)', 0.0)"
+      "value": 1.0,
+      "form": "step(6, 'cos(0)', 1.0)"
     },
     {
       "predicate": "step",
       "args": [
         7,
-        "(((5 * 13) + (sqrt(144) * 2)) - (log(1) * 67))"
+        "(cos(0) * 1.0)"
       ],
-      "value": 89.0,
-      "form": "step(7, '(((5 * 13) + (sqrt(144) * 2)) - (log(1) * 67))', 89.0)"
+      "value": 1.0,
+      "form": "step(7, '(cos(0) * 1.0)', 1.0)"
     },
     {
       "predicate": "step",
       "args": [
         8,
-        "cos(0)"
+        "((cos(0) * 1.0) * 1.0)"
       ],
       "value": 1.0,
-      "form": "step(8, 'cos(0)', 1.0)"
+      "form": "step(8, '((cos(0) * 1.0) * 1.0)', 1.0)"
     },
     {
       "predicate": "step",
       "args": [
         9,
-        "(cos(0) * 2)"
+        "((sqrt(10000) + (log((e ** 2)) * 10)) - ((cos(0) * 1.0) * 1.0))"
       ],
-      "value": 2.0,
-      "form": "step(9, '(cos(0) * 2)', 2.0)"
-    },
-    {
-      "predicate": "step",
-      "args": [
-        10,
-        "((((5 * 13) + (sqrt(144) * 2)) - (log(1) * 67)) + (cos(0) * 2))"
-      ],
-      "value": 91.0,
-      "form": "step(10, '((((5 * 13) + (sqrt(144) * 2)) - (log(1) * 67)) + (cos(0) * 2))', 91.0)"
+      "value": 119.0,
+      "form": "step(9, '((sqrt(10000) + (log((e ** 2)) * 10)) - ((cos(0) * 1.0) * 1.0))', 119.0)"
     },
     {
       "predicate": "result",
       "args": [
         "actual"
       ],
-      "value": 91.0,
-      "form": "result(actual) = 91.0"
+      "value": 119.0,
+      "form": "result(actual) = 119.0"
     },
     {
       "predicate": "claimed",
       "args": [
         "target"
       ],
-      "value": 67.0,
-      "form": "claimed(target) = 67.0"
+      "value": 99.0,
+      "form": "claimed(target) = 99.0"
     },
     {
       "predicate": "equals",
@@ -178,135 +249,150 @@
         "claimed_value"
       ],
       "value": true,
-      "form": "incorrect(67.0) \u2190 \u00acequals(claimed, result) \u2227 result = 91.0"
+      "form": "incorrect(99.0) \u2190 \u00acequals(claimed, result) \u2227 result = 119.0"
+    },
+    {
+      "predicate": "required_to_reach_target",
+      "args": [
+        "sqrt(10000)"
+      ],
+      "value": 80.0,
+      "form": "required(sqrt(10000)...) = 80 (actual 100, discrepancy -20)"
+    },
+    {
+      "predicate": "required_to_reach_target",
+      "args": [
+        "(log((e ** 2)) * 10)"
+      ],
+      "value": 0.0,
+      "form": "required((log((e ** 2)) * 10)...) = 0 (actual 20, discrepancy -20)"
+    },
+    {
+      "predicate": "required_to_reach_target",
+      "args": [
+        "(sqrt(10000) + (log((e ** 2)) * 10))"
+      ],
+      "value": 100.0,
+      "form": "required((sqrt(10000) + (log((e ** 2)) * 10))...) = 100 (actual 120, discrepancy -20)"
     }
   ],
   "facts": [
     {
       "predicate": "claimed_target",
       "args": [],
-      "value": 67.0
+      "value": 99.0
     },
     {
       "predicate": "llm_equation",
       "args": [],
-      "value": "(5 * 13) + (sqrt(144) * 2) - (ln(1) * 67) + (cos(0) * 2)"
+      "value": "sqrt(10000) + ln(e^2) * 10 - cos(0) * 1.0 * 1.0"
     },
     {
       "predicate": "ground_truth_expression",
       "args": [],
-      "value": "91"
+      "value": "119"
     },
     {
       "predicate": "actual_value",
       "args": [],
-      "value": 91.0
+      "value": 119.0
     },
     {
       "predicate": "step",
       "args": [
         1,
-        "(5 * 13)"
+        "sqrt(10000)"
       ],
-      "value": 65.0,
-      "form": "step(1, '(5 * 13)', 65.0)"
+      "value": 100.0,
+      "form": "step(1, 'sqrt(10000)', 100.0)"
     },
     {
       "predicate": "step",
       "args": [
         2,
-        "sqrt(144)"
+        "(e ** 2)"
       ],
-      "value": 12.0,
-      "form": "step(2, 'sqrt(144)', 12.0)"
+      "value": 7.3890560989306495,
+      "form": "step(2, '(e ** 2)', 7.3890560989306495)"
     },
     {
       "predicate": "step",
       "args": [
         3,
-        "(sqrt(144) * 2)"
+        "log((e ** 2))"
       ],
-      "value": 24.0,
-      "form": "step(3, '(sqrt(144) * 2)', 24.0)"
+      "value": 2.0,
+      "form": "step(3, 'log((e ** 2))', 2.0)"
     },
     {
       "predicate": "step",
       "args": [
         4,
-        "((5 * 13) + (sqrt(144) * 2))"
+        "(log((e ** 2)) * 10)"
       ],
-      "value": 89.0,
-      "form": "step(4, '((5 * 13) + (sqrt(144) * 2))', 89.0)"
+      "value": 20.0,
+      "form": "step(4, '(log((e ** 2)) * 10)', 20.0)"
     },
     {
       "predicate": "step",
       "args": [
         5,
-        "log(1)"
+        "(sqrt(10000) + (log((e ** 2)) * 10))"
       ],
-      "value": 0.0,
-      "form": "step(5, 'log(1)', 0.0)"
+      "value": 120.0,
+      "form": "step(5, '(sqrt(10000) + (log((e ** 2)) * 10))', 120.0)"
     },
     {
       "predicate": "step",
       "args": [
         6,
-        "(log(1) * 67)"
+        "cos(0)"
       ],
-      "value": 0.0,
-      "form": "step(6, '(log(1) * 67)', 0.0)"
+      "value": 1.0,
+      "form": "step(6, 'cos(0)', 1.0)"
     },
     {
       "predicate": "step",
       "args": [
         7,
-        "(((5 * 13) + (sqrt(144) * 2)) - (log(1) * 67))"
+        "(cos(0) * 1.0)"
       ],
-      "value": 89.0,
-      "form": "step(7, '(((5 * 13) + (sqrt(144) * 2)) - (log(1) * 67))', 89.0)"
+      "value": 1.0,
+      "form": "step(7, '(cos(0) * 1.0)', 1.0)"
     },
     {
       "predicate": "step",
       "args": [
         8,
-        "cos(0)"
+        "((cos(0) * 1.0) * 1.0)"
       ],
       "value": 1.0,
-      "form": "step(8, 'cos(0)', 1.0)"
+      "form": "step(8, '((cos(0) * 1.0) * 1.0)', 1.0)"
     },
     {
       "predicate": "step",
       "args": [
         9,
-        "(cos(0) * 2)"
+        "((sqrt(10000) + (log((e ** 2)) * 10)) - ((cos(0) * 1.0) * 1.0))"
       ],
-      "value": 2.0,
-      "form": "step(9, '(cos(0) * 2)', 2.0)"
-    },
-    {
-      "predicate": "step",
-      "args": [
-        10,
-        "((((5 * 13) + (sqrt(144) * 2)) - (log(1) * 67)) + (cos(0) * 2))"
-      ],
-      "value": 91.0,
-      "form": "step(10, '((((5 * 13) + (sqrt(144) * 2)) - (log(1) * 67)) + (cos(0) * 2))', 91.0)"
+      "value": 119.0,
+      "form": "step(9, '((sqrt(10000) + (log((e ** 2)) * 10)) - ((cos(0) * 1.0) * 1.0))', 119.0)"
     },
     {
       "predicate": "result",
       "args": [
         "actual"
       ],
-      "value": 91.0,
-      "form": "result(actual) = 91.0"
+      "value": 119.0,
+      "form": "result(actual) = 119.0"
     },
     {
       "predicate": "claimed",
       "args": [
         "target"
       ],
-      "value": 67.0,
-      "form": "claimed(target) = 67.0"
+      "value": 99.0,
+      "form": "claimed(target) = 99.0"
     },
     {
       "predicate": "equals",
@@ -323,14 +409,38 @@
         "claimed_value"
       ],
       "value": true,
-      "form": "incorrect(67.0) \u2190 \u00acequals(claimed, result) \u2227 result = 91.0"
+      "form": "incorrect(99.0) \u2190 \u00acequals(claimed, result) \u2227 result = 119.0"
+    },
+    {
+      "predicate": "required_to_reach_target",
+      "args": [
+        "sqrt(10000)"
+      ],
+      "value": 80.0,
+      "form": "required(sqrt(10000)...) = 80 (actual 100, discrepancy -20)"
+    },
+    {
+      "predicate": "required_to_reach_target",
+      "args": [
+        "(log((e ** 2)) * 10)"
+      ],
+      "value": 0.0,
+      "form": "required((log((e ** 2)) * 10)...) = 0 (actual 20, discrepancy -20)"
+    },
+    {
+      "predicate": "required_to_reach_target",
+      "args": [
+        "(sqrt(10000) + (log((e ** 2)) * 10))"
+      ],
+      "value": 100.0,
+      "form": "required((sqrt(10000) + (log((e ** 2)) * 10))...) = 100 (actual 120, discrepancy -20)"
     }
   ],
   "reasoning_trace": [
     {
       "rule": "equals_target",
       "result": false,
-      "reason": "equation_value(91.0) != claimed_target(67.0)"
+      "reason": "equation_value(119.0) != claimed_target(99.0)"
     },
     {
       "inference": "verdict",

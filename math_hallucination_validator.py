@@ -151,6 +151,81 @@ def symbolic_match(wolfram_text: str, llm_text: str) -> tuple[bool, str]:
     return False, "symbolic_mismatch"
 
 
+def relative_error_and_confidence(wolfram_text: str, llm_text: str) -> tuple[float | None, str, str]:
+    """
+    Aggregation/statistical: compute relative error between ground truth and LLM answer (when both are numeric).
+    Returns (relative_error or None, confidence_level, explanation).
+    """
+    wa = extract_numbers(wolfram_text)
+    la = extract_numbers(llm_text)
+    if not wa or not la:
+        return None, "unknown", "Cannot compute relative error (missing numbers)."
+    w_last, l_last = wa[-1], la[-1]
+    if abs(w_last) < 1e-12:
+        return None, "unknown", "Ground truth near zero; relative error undefined."
+    rel_err = abs(w_last - l_last) / abs(w_last)
+    if rel_err <= NUMERIC_TOLERANCE:
+        return rel_err, "high", f"Relative error ≈ {rel_err:.2e} (match)."
+    if rel_err < 0.01:
+        confidence = "medium"
+        expl = f"Relative error ≈ {rel_err:.2%}; small numeric deviation."
+    elif rel_err < 0.5:
+        confidence = "high"
+        expl = f"Relative error ≈ {rel_err:.2%}; moderate evidence of hallucination."
+    else:
+        confidence = "very_high"
+        expl = f"Relative error ≈ {rel_err:.2%}; strong evidence of hallucination."
+    return rel_err, confidence, expl
+
+
+def abduce_causes(numeric_ok: bool, symbolic_ok: bool, gt_text: str, llm_text: str) -> list[dict]:
+    """
+    Abduction: infer possible causes for hallucination (why LLM answer might disagree with ground truth).
+    Returns list of FOPC-style hypotheses.
+    """
+    causes = []
+    if not numeric_ok and extract_numbers(gt_text) and extract_numbers(llm_text):
+        causes.append({
+            "predicate": "abduced_cause",
+            "hypothesis": "numeric_error",
+            "form": "LLM may have made a numerical mistake (wrong constant, wrong operation, or rounding).",
+        })
+    if not symbolic_ok:
+        causes.append({
+            "predicate": "abduced_cause",
+            "hypothesis": "symbolic_error",
+            "form": "LLM may have used a different (incorrect) symbolic form or expression.",
+        })
+    if not numeric_ok and not symbolic_ok:
+        causes.append({
+            "predicate": "abduced_cause",
+            "hypothesis": "both_numeric_and_symbolic",
+            "form": "Both numeric and symbolic mismatch; hallucination likely substantive.",
+        })
+    if numeric_ok and not symbolic_ok:
+        causes.append({
+            "predicate": "abduced_cause",
+            "hypothesis": "form_difference_only",
+            "form": "Numbers agree but form differs (e.g. equivalent expression in different form).",
+        })
+    return causes
+
+
+def build_inference_chain(gt_text: str, llm_answer: str, num_ok: bool, sym_ok: bool, verdict: str) -> list[dict]:
+    """
+    Explicit logical inference chain (FOPC): premises → rule application → conclusion.
+    """
+    chain = [
+        {"step": 1, "type": "premise", "form": "P1: ground_truth(G)", "value": gt_text[:80]},
+        {"step": 2, "type": "premise", "form": "P2: llm_answer(L)", "value": llm_answer[:80]},
+        {"step": 3, "type": "observation", "form": f"P3: numeric_match(G,L) = {num_ok}", "value": num_ok},
+        {"step": 4, "type": "observation", "form": f"P4: symbolic_match(G,L) = {sym_ok}", "value": sym_ok},
+        {"step": 5, "type": "rule", "form": "R: not_hallucinating ↔ (P3 ∨ P4)", "value": None},
+        {"step": 6, "type": "conclusion", "form": f"C: verdict = {verdict}", "value": verdict},
+    ]
+    return chain
+
+
 # -------------------------
 # Step-by-step breakdown (order of operations) + FOPC
 # -------------------------
@@ -213,7 +288,13 @@ def _safe_math_eval_with_steps(expr: str) -> tuple[list[dict], float | None]:
                 v = lv**rv
             else:
                 raise ValueError(op)
-            self.step_list.append({"step_index": len(self.step_list) + 1, "subexpr": subexpr, "value": v})
+            self.step_list.append({
+                "step_index": len(self.step_list) + 1,
+                "subexpr": subexpr,
+                "value": v,
+                "op": op,
+                "children": [ls, rs],
+            })
             return (subexpr, v)
 
         def visit_BinOp(self, node: ast.BinOp) -> None:
@@ -277,7 +358,13 @@ def _safe_math_eval_with_steps(expr: str) -> tuple[list[dict], float | None]:
             else:
                 self.stack.extend(args)
                 return
-            self.step_list.append({"step_index": len(self.step_list) + 1, "subexpr": subexpr, "value": v})
+            self.step_list.append({
+                "step_index": len(self.step_list) + 1,
+                "subexpr": subexpr,
+                "value": v,
+                "op": name,
+                "children": [args[0][0]],
+            })
             self.stack.append((subexpr, v))
 
     try:
@@ -295,23 +382,163 @@ def _safe_math_eval_with_steps(expr: str) -> tuple[list[dict], float | None]:
         return [], None
 
 
+def _back_solve_required_values(
+    steps: list[dict],
+    claimed_target: float,
+    tolerance: float = NUMERIC_TOLERANCE,
+) -> list[dict]:
+    """
+    Back-solve from claimed_target: at each sub-expression, what value would it need
+    for the whole expression to equal claimed_target? Compare to actual (derived ourselves).
+    Returns list of {subexpr, actual, required, discrepancy, step_index} for localization.
+    """
+    if not steps:
+        return []
+    # Map subexpr -> {value, op, children}
+    by_subexpr: dict[str, dict] = {}
+    for s in steps:
+        subexpr = s.get("subexpr")
+        if not subexpr:
+            continue
+        by_subexpr[subexpr] = {"value": s["value"], "op": s.get("op"), "children": s.get("children") or []}
+    # Root is the last step that has op (full expression; sometimes last step is a duplicate without op)
+    root_subexpr = None
+    for s in reversed(steps):
+        subexpr = s.get("subexpr")
+        if subexpr and by_subexpr.get(subexpr, {}).get("op"):
+            root_subexpr = subexpr
+            break
+    if not root_subexpr:
+        return []
+    required: dict[str, float] = {root_subexpr: claimed_target}
+    # Process steps in reverse order so parent required is set before we compute children
+    for s in reversed(steps):
+        subexpr = s.get("subexpr")
+        if subexpr not in required or subexpr not in by_subexpr:
+            continue
+        R = required[subexpr]
+        info = by_subexpr[subexpr]
+        op, children = info.get("op"), info.get("children")
+        if not op or not children:
+            continue
+        val = info["value"]
+        if op == "add" and len(children) >= 2:
+            left_sub, right_sub = children[0], children[1]
+            left_val = by_subexpr.get(left_sub, {}).get("value")
+            right_val = by_subexpr.get(right_sub, {}).get("value")
+            if left_val is not None and right_val is not None:
+                required[left_sub] = R - right_val
+                required[right_sub] = R - left_val
+        elif op == "sub" and len(children) >= 2:
+            left_sub, right_sub = children[0], children[1]
+            left_val = by_subexpr.get(left_sub, {}).get("value")
+            right_val = by_subexpr.get(right_sub, {}).get("value")
+            if left_val is not None and right_val is not None:
+                required[left_sub] = R + right_val
+                required[right_sub] = left_val - R
+        elif op == "mult" and len(children) >= 2:
+            left_sub, right_sub = children[0], children[1]
+            left_val = by_subexpr.get(left_sub, {}).get("value")
+            right_val = by_subexpr.get(right_sub, {}).get("value")
+            if left_val is not None and right_val is not None and abs(right_val) > 1e-12 and abs(left_val) > 1e-12:
+                required[left_sub] = R / right_val
+                required[right_sub] = R / left_val
+        elif op == "div" and len(children) >= 2:
+            left_sub, right_sub = children[0], children[1]
+            left_val = by_subexpr.get(left_sub, {}).get("value")
+            right_val = by_subexpr.get(right_sub, {}).get("value")
+            if right_val is not None and abs(right_val) > 1e-12 and left_val is not None:
+                required[left_sub] = R * right_val
+                required[right_sub] = left_val / R
+        elif op == "pow" and len(children) >= 2:
+            left_sub, right_sub = children[0], children[1]
+            left_val = by_subexpr.get(left_sub, {}).get("value")
+            right_val = by_subexpr.get(right_sub, {}).get("value")
+            if left_val is not None and right_val is not None and left_val > 0 and R > 0:
+                try:
+                    required[left_sub] = R ** (1.0 / right_val)
+                    required[right_sub] = math.log(R) / math.log(left_val) if left_val != 1 else 0
+                except (ZeroDivisionError, ValueError):
+                    pass
+        elif op == "sqrt" and len(children) >= 1 and R >= 0:
+            required[children[0]] = R * R
+        elif op == "log" and len(children) >= 1:
+            try:
+                required[children[0]] = math.exp(R)
+            except OverflowError:
+                pass
+        # cos, sin, tan: skip inverse (required for arg not uniquely defined for localization)
+    # Build localization list: subexpr, actual, required, discrepancy
+    out = []
+    for s in steps:
+        subexpr = s.get("subexpr")
+        if not subexpr or subexpr not in by_subexpr:
+            continue
+        actual = by_subexpr[subexpr]["value"]
+        req = required.get(subexpr)
+        if req is None:
+            continue
+        disc = req - actual
+        if abs(disc) < tolerance and abs(actual - claimed_target) < tolerance:
+            continue
+        out.append({
+            "step_index": s.get("step_index"),
+            "subexpr": subexpr,
+            "actual_value": actual,
+            "required_value_to_reach_target": req,
+            "discrepancy": disc,
+            "abs_discrepancy": abs(disc),
+        })
+    # Sort by abs_discrepancy descending so "where it went wrong" is first
+    out.sort(key=lambda x: -x["abs_discrepancy"])
+    return out
+
+
+def _hallucination_location_explanation(
+    localization: list[dict],
+    claimed_target: float,
+    actual_final: float,
+) -> str:
+    """Turn localization (our derived back-solve) into a short explanation of where the equation diverges."""
+    if not localization:
+        return f"Equation evaluates to {actual_final}; claimed {claimed_target}. Could not trace sub-expressions."
+    lines = [
+        f"To get {claimed_target}, the equation would need each part to have different values. Our derived back-solve (no ChatGPT steps):",
+    ]
+    for i, loc in enumerate(localization[:5]):
+        sub = loc["subexpr"]
+        if len(sub) > 60:
+            sub = sub[:57] + "..."
+        a, r, d = loc["actual_value"], loc["required_value_to_reach_target"], loc["discrepancy"]
+        lines.append(f"  • {sub}: actual = {a:.4g}, would need = {r:.4g} (gap {d:+.4g})")
+    lines.append(f"Largest discrepancy is in the first listed sub-expression(s); that is where the equation diverges from the claimed {claimed_target}.")
+    return "\n".join(lines)
+
+
 def step_by_step_breakdown_and_fopc(
     llm_equation: str,
     claimed_target: float,
     actual_value: float,
     tolerance: float = NUMERIC_TOLERANCE,
-) -> tuple[list[dict], list[dict], str]:
+) -> tuple[list[dict], list[dict], str, list[dict], str]:
     """
-    Produce step-by-step breakdown and FOPC representation showing why the claim is incorrect.
-    Returns (steps_list, fopc_facts, language_explanation).
+    Produce step-by-step breakdown and FOPC; derive where equation diverges (back-solve, no LLM steps).
+    Returns (steps_list, fopc_facts, language_explanation, hallucination_location, location_explanation).
     """
     steps, computed = _safe_math_eval_with_steps(llm_equation)
     # Use Wolfram actual_value as ground truth when our eval fails or differs
     actual = actual_value if actual_value is not None else computed
     equals_claimed = actual is not None and claimed_target is not None and abs(actual - claimed_target) <= tolerance
 
+    # Back-solve from claimed_target to find where equation diverges (our own derivation, not ChatGPT)
+    hallucination_location: list[dict] = []
+    location_explanation = ""
+    if not equals_claimed and actual is not None and steps:
+        hallucination_location = _back_solve_required_values(steps, claimed_target, tolerance)
+        location_explanation = _hallucination_location_explanation(hallucination_location, claimed_target, actual)
+
     # FOPC: step(i, subexpr, value) for each step; result(actual); claimed(claimed_target);
-    # equals(claimed, actual) or ¬equals(claimed, actual); incorrect(claimed) ↔ ¬equals(claimed, actual)
+    # equals(claimed, actual) or ¬equals(claimed, actual); incorrect(claimed); required(subexpr) for localization
     fopc: list[dict] = []
     for s in steps:
         fopc.append({
@@ -335,20 +562,31 @@ def step_by_step_breakdown_and_fopc(
             "value": True,
             "form": f"incorrect({claimed_target}) ← ¬equals(claimed, result) ∧ result = {actual}",
         })
+        for loc in hallucination_location[:3]:
+            fopc.append({
+                "predicate": "required_to_reach_target",
+                "args": [loc["subexpr"][:80]],
+                "value": loc["required_value_to_reach_target"],
+                "form": f"required({loc['subexpr'][:50]}...) = {loc['required_value_to_reach_target']:.4g} (actual {loc['actual_value']:.4g}, discrepancy {loc['discrepancy']:+.4g})",
+            })
 
-    # Language: step-by-step breakdown then why it is incorrect
-    lines = ["Step-by-step (order of operations):"]
+    # Language: step-by-step breakdown, then where it diverges (our derivation), then why incorrect
+    lines = ["Step-by-step (order of operations, derived ourselves):"]
     for s in steps:
         lines.append(f"  Step {s['step_index']}: {s['subexpr']} = {s['value']}")
     if actual is not None:
         lines.append(f"  → Final value = {actual}")
     lines.append("")
+    if location_explanation:
+        lines.append("Where it diverges from the claimed value (back-solve from target, no ChatGPT steps):")
+        lines.append(location_explanation)
+        lines.append("")
     if not equals_claimed and actual is not None:
         lines.append(f"Why the claim is incorrect: claimed value = {claimed_target}, but correct value = {actual}. So ¬equals(claimed, result); hence the equation does not equal {claimed_target} (hallucination).")
     else:
         lines.append("The claimed value matches the computed result (no hallucination).")
     explanation = "\n".join(lines)
-    return steps, fopc, explanation
+    return steps, fopc, explanation, hallucination_location, location_explanation
 
 
 # -------------------------
@@ -365,10 +603,11 @@ def facts_and_rules(question_id: str, question: str, ground: dict, llm_answer: s
     ]
 
 
-def apply_rules_and_deduce(question_id: str, ground: dict, llm_answer: str) -> tuple[str, list[dict], str]:
+def apply_rules_and_deduce(question_id: str, ground: dict, llm_answer: str) -> tuple[str, list[dict], str, dict]:
     """
-    Rule-based reasoning + deduction.
-    Returns (verdict, reasoning_trace, language_explanation).
+    Rule-based reasoning + deduction + abduction + confidence + inference chain.
+    Returns (verdict, reasoning_trace, language_explanation, extras).
+    extras: {relative_error, confidence, abduced_causes, inference_chain}
     """
     gt_text = ground.get("raw_plaintext", "") or ""
     trace = []
@@ -382,13 +621,34 @@ def apply_rules_and_deduce(question_id: str, ground: dict, llm_answer: str) -> t
     trace.append({"rule": "symbolic_match", "result": sym_ok, "reason": sym_reason})
     language_parts.append(f"Symbolic comparison: {sym_reason}.")
 
+    # Aggregation/statistical: relative error and confidence
+    rel_err, confidence, conf_expl = relative_error_and_confidence(gt_text, llm_answer)
+    trace.append({"rule": "confidence", "result": confidence, "reason": conf_expl, "relative_error": rel_err})
+    language_parts.append(f"Evidence strength: {conf_expl}")
+
     # Deduction: not_hallucinating iff (numeric_match OR symbolic_match)
     not_hallucinating = num_ok or sym_ok
     verdict = "not_hallucinating" if not_hallucinating else "hallucinating"
     trace.append({"inference": "verdict", "predicate": verdict, "premise": "numeric_match ∨ symbolic_match"})
     language_parts.append(f"Verdict: {verdict} (by rule: correct if numeric or symbolic match).")
 
-    return verdict, trace, " ".join(language_parts)
+    # Abduction: possible causes when hallucinating
+    abduced = abduce_causes(num_ok, sym_ok, gt_text, llm_answer)
+    trace.append({"inference": "abduction", "abduced_causes": abduced})
+    if abduced:
+        language_parts.append("Possible causes: " + "; ".join(c.get("form", "") for c in abduced[:2]))
+
+    # Explicit inference chain (FOPC)
+    chain = build_inference_chain(gt_text, llm_answer, num_ok, sym_ok, verdict)
+    trace.append({"inference": "chain", "inference_chain": chain})
+
+    extras = {
+        "relative_error": rel_err,
+        "confidence": confidence,
+        "abduced_causes": abduced,
+        "inference_chain": chain,
+    }
+    return verdict, trace, " ".join(language_parts), extras
 
 
 # -------------------------
@@ -576,8 +836,10 @@ def validate_equation_claim(
         {"predicate": "ground_truth_expression", "args": [], "value": gt_text},
         {"predicate": "actual_value", "args": [], "value": actual},
     ]
-    # Step-by-step breakdown and FOPC (why incorrect)
-    steps_list, fopc_steps, step_explanation = step_by_step_breakdown_and_fopc(llm_equation, target, actual, tolerance)
+    # Step-by-step breakdown and FOPC; derive where it diverges (back-solve, no ChatGPT steps)
+    steps_list, fopc_steps, step_explanation, hallucination_location, location_explanation = step_by_step_breakdown_and_fopc(
+        llm_equation, target, actual, tolerance
+    )
     facts.extend([{"predicate": f["predicate"], "args": f["args"], "value": f["value"], "form": f.get("form", "")} for f in fopc_steps])
     explanation = (
         step_explanation + "\n\n"
@@ -595,6 +857,8 @@ def validate_equation_claim(
         "reasoning_explanation": explanation,
         "step_by_step": steps_list,
         "fopc_step_and_incorrect": fopc_steps,
+        "hallucination_location": hallucination_location,
+        "where_diverges_explanation": location_explanation,
         "_reasoning_trace": trace,
         "_facts": facts,
     }
@@ -624,7 +888,7 @@ def validate_word_problem(word_problem: str) -> dict[str, Any]:
             "_facts": [],
         }
     llm_out = call_llm(word_problem)
-    verdict, trace, explanation = apply_rules_and_deduce("word_problem", ground, llm_out["answer"])
+    verdict, trace, explanation, extras = apply_rules_and_deduce("word_problem", ground, llm_out["answer"])
     gt_text = ground.get("raw_plaintext", "") or ""
     facts = [
         {"predicate": "question", "args": ["word_problem"], "value": word_problem},
@@ -650,6 +914,7 @@ def validate_word_problem(word_problem: str) -> dict[str, Any]:
         "reasoning_explanation": explanation,
         "_reasoning_trace": trace,
         "_facts": facts,
+        "_extras": extras,
     }
 
 
@@ -678,7 +943,7 @@ def run_validation(questions: list[dict] = None, use_cache: bool = True) -> list
                 gt_cache[q] = {"raw_plaintext": f"[Wolfram error: {e}]", "definite_result": None, "pods": []}
         ground = gt_cache[q]
         llm_out = call_llm(q)
-        verdict, trace, explanation = apply_rules_and_deduce(qid, ground, llm_out["answer"])
+        verdict, trace, explanation, extras = apply_rules_and_deduce(qid, ground, llm_out["answer"])
 
         row = {
             "question_id": qid,
@@ -693,6 +958,7 @@ def run_validation(questions: list[dict] = None, use_cache: bool = True) -> list
         }
         row["_reasoning_trace"] = trace
         row["_facts"] = facts_and_rules(qid, q, ground, llm_out["answer"], llm_out["reasoning"])
+        row["_extras"] = extras
         rows.append(row)
 
     if use_cache:
@@ -704,27 +970,55 @@ def run_validation(questions: list[dict] = None, use_cache: bool = True) -> list
 
 
 def write_table_and_log(rows: list[dict]) -> None:
-    """Write CSV table and reasoning log (FOPC-style + trace)."""
+    """Write CSV table and reasoning log (FOPC-style + trace + aggregation + abduction + inference chain)."""
     import csv
     table_path = os.path.join(RESULTS_DIR, RESULTS_TABLE)
     log_path = os.path.join(RESULTS_DIR, REASONING_LOG)
 
-    # CSV: drop internal keys
-    table_rows = [{k: v for k, v in r.items() if not k.startswith("_")} for r in rows]
+    # Aggregation / statistical reasoning over the question bank
+    n = len(rows)
+    k = sum(1 for r in rows if r.get("verdict") == "hallucinating")
+    rate = (k / n) if n else 0
+    aggregation = {
+        "total_questions": n,
+        "hallucination_count": k,
+        "hallucination_rate": rate,
+        "fopc": [
+            {"predicate": "aggregate", "args": ["total"], "value": n, "form": f"total_questions({n})"},
+            {"predicate": "aggregate", "args": ["hallucination_count"], "value": k, "form": f"hallucination_count({k})"},
+            {"predicate": "rate_hallucinating", "args": [k, n], "value": rate, "form": f"rate_hallucinating({k}, {n}) = {rate:.2%}"},
+        ],
+    }
+
+    # CSV: drop internal keys; add confidence and relative_error if present
+    table_rows = []
+    for r in rows:
+        row = {k: v for k, v in r.items() if not k.startswith("_")}
+        ex = r.get("_extras", {})
+        if ex:
+            row["confidence"] = ex.get("confidence")
+            row["relative_error"] = ex.get("relative_error")
+        table_rows.append(row)
     with open(table_path, "w", newline="", encoding="utf-8") as f:
-        w = csv.DictWriter(f, fieldnames=table_rows[0].keys() if table_rows else [])
+        all_keys = list(table_rows[0].keys()) if table_rows else []
+        w = csv.DictWriter(f, fieldnames=all_keys, extrasaction="ignore")
         w.writeheader()
         w.writerows(table_rows)
     print(f"Table: {table_path}")
 
     log = {
-        "representation": "FOPC-style facts + rule-based deduction",
+        "representation": "FOPC-style facts + rule-based deduction + abduction + aggregation + inference chain",
+        "aggregation": aggregation,
         "questions": [
             {
                 "id": r["question_id"],
                 "facts": r.get("_facts", []),
                 "reasoning_trace": r.get("_reasoning_trace", []),
                 "verdict": r["verdict"],
+                "abduced_causes": r.get("_extras", {}).get("abduced_causes", []),
+                "inference_chain": r.get("_extras", {}).get("inference_chain", []),
+                "confidence": r.get("_extras", {}).get("confidence"),
+                "relative_error": r.get("_extras", {}).get("relative_error"),
             }
             for r in rows
         ],
@@ -759,6 +1053,11 @@ def main():
         if row.get("llm_reasoning"):
             print(f"ChatGPT reasoning (excerpt): {row['llm_reasoning'][:200]}...")
         print(f"\nVerdict: {row['verdict']}  (numeric_match={row.get('numeric_match')}, symbolic_match={row.get('symbolic_match')})")
+        extras = row.get("_extras", {})
+        if extras.get("confidence"):
+            print(f"Evidence strength: {extras['confidence']}")
+        if extras.get("abduced_causes"):
+            print("Abduced causes:", [c.get("hypothesis") for c in extras["abduced_causes"]])
         print(f"Reasoning: {row['reasoning_explanation']}")
         os.makedirs(RESULTS_DIR, exist_ok=True)
         log_path = os.path.join(RESULTS_DIR, "word_problem_log.json")
@@ -775,6 +1074,10 @@ def main():
                     "reasoning_explanation": row["reasoning_explanation"],
                     "facts": row.get("_facts", []),
                     "reasoning_trace": row.get("_reasoning_trace", []),
+                    "abduced_causes": extras.get("abduced_causes", []),
+                    "inference_chain": extras.get("inference_chain", []),
+                    "confidence": extras.get("confidence"),
+                    "relative_error": extras.get("relative_error"),
                 },
                 f,
                 indent=2,
@@ -810,9 +1113,14 @@ def main():
         print(f"Wolfram (exact): {row.get('wolfram_answer', '')[:200]}...")
         print(f"Wolfram (decimal): {row.get('actual_value')}")
         print(f"Verdict: {row['verdict']}\n")
-        print("--- Step-by-step (order of operations) ---")
+        print("--- Step-by-step (order of operations, derived ourselves) ---")
         for s in row.get("step_by_step", []):
             print(f"  Step {s['step_index']}: {s['subexpr']} = {s['value']}")
+        if row.get("where_diverges_explanation"):
+            print("\n--- Where it diverges (back-solve from target, no ChatGPT steps) ---")
+            print(row["where_diverges_explanation"])
+            for loc in row.get("hallucination_location", [])[:5]:
+                print(f"  → {loc['subexpr'][:55]}... actual={loc['actual_value']:.4g}  need={loc['required_value_to_reach_target']:.4g}  gap={loc['discrepancy']:+.4g}")
         print("\n--- FOPC (why incorrect/correct) ---")
         for f in row.get("fopc_step_and_incorrect", []):
             print(f"  {f.get('form', f)}")
@@ -828,6 +1136,8 @@ def main():
                     "actual_value": row["actual_value"],
                     "verdict": row["verdict"],
                     "step_by_step": row.get("step_by_step", []),
+                    "hallucination_location": row.get("hallucination_location", []),
+                    "where_diverges_explanation": row.get("where_diverges_explanation", ""),
                     "fopc": row.get("fopc_step_and_incorrect", []),
                     "facts": row.get("_facts", []),
                     "reasoning_trace": row.get("_reasoning_trace", []),
@@ -857,9 +1167,14 @@ def main():
         print(f"Wolfram (exact): {row.get('wolfram_answer', '')[:200]}...")
         print(f"Wolfram (decimal): {row.get('actual_value')}")
         print(f"Verdict: {row['verdict']}\n")
-        print("--- Step-by-step (order of operations) ---")
+        print("--- Step-by-step (order of operations, derived ourselves) ---")
         for s in row.get("step_by_step", []):
             print(f"  Step {s['step_index']}: {s['subexpr']} = {s['value']}")
+        if row.get("where_diverges_explanation"):
+            print("\n--- Where it diverges (back-solve from target, no ChatGPT steps) ---")
+            print(row["where_diverges_explanation"])
+            for loc in row.get("hallucination_location", [])[:5]:
+                print(f"  → {loc['subexpr'][:55]}... actual={loc['actual_value']:.4g}  need={loc['required_value_to_reach_target']:.4g}  gap={loc['discrepancy']:+.4g}")
         print("\n--- FOPC (why incorrect) ---")
         for f in row.get("fopc_step_and_incorrect", []):
             print(f"  {f.get('form', f)}")
@@ -874,6 +1189,8 @@ def main():
                     "actual_value": row["actual_value"],
                     "verdict": row["verdict"],
                     "step_by_step": row.get("step_by_step", []),
+                    "hallucination_location": row.get("hallucination_location", []),
+                    "where_diverges_explanation": row.get("where_diverges_explanation", ""),
                     "fopc": row.get("fopc_step_and_incorrect", []),
                     "facts": row.get("_facts", []),
                     "reasoning_trace": row.get("_reasoning_trace", []),
@@ -892,10 +1209,15 @@ def main():
         print("LLM: mock (set OPENAI_API_KEY or add to .env for real ChatGPT)\n")
     rows = run_validation(use_cache=True)
     write_table_and_log(rows)
+    n = len(rows)
+    k = sum(1 for r in rows if r.get("verdict") == "hallucinating")
     print("\n--- Summary ---")
     for r in rows:
-        print(f"  {r['question_id']}: {r['verdict']}  (numeric={r['numeric_match']}, symbolic={r['symbolic_match']})")
-    print("\nReasoning representation: tabular (CSV) + FOPC-style facts and deduction trace in", REASONING_LOG)
+        ex = r.get("_extras", {})
+        conf = ex.get("confidence", "")
+        print(f"  {r['question_id']}: {r['verdict']}  (numeric={r['numeric_match']}, symbolic={r['symbolic_match']}, confidence={conf})")
+    print(f"\n--- Aggregation ---  total={n}, hallucinating={k}, rate={k/n:.0%}" if n else "")
+    print("\nReasoning: FOPC + rule-based deduction + abduction + inference chain + aggregation. Log:", REASONING_LOG)
     return 0
 
 

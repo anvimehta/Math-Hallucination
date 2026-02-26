@@ -40,6 +40,15 @@
 
 ---
 
+## Reasoning included
+
+- **Rule-based**: numeric match (tolerance), symbolic match (normalized form).
+- **Logical inference (deduction)**: verdict = not_hallucinating ↔ (numeric_match ∨ symbolic_match).
+- **Abduction**: when hallucinating, possible causes (numeric_error, symbolic_error, both) as FOPC-style hypotheses.
+- **Aggregation / statistical**: relative error (ground truth vs LLM), confidence (evidence strength); over the question bank: total_questions, hallucination_count, rate_hallucinating(k, n).
+- **Explicit inference chain (FOPC)**: premises P1–P4 (ground_truth, llm_answer, numeric_match, symbolic_match), rule R, conclusion C (verdict).
+- **Step-by-step (equation-claim)**: order-of-operations breakdown and FOPC step(·, ·, ·), result(·), incorrect(·).
+
 ## Steps (assignment outline)
 
 1. **Question bank** — Define early-college math questions (algebra, calculus, trig, etc.) in code or a single data file.

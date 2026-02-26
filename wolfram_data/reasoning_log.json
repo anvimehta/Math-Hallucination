@@ -1,5 +1,37 @@
 {
-  "representation": "FOPC-style facts + rule-based deduction",
+  "representation": "FOPC-style facts + rule-based deduction + abduction + aggregation + inference chain",
+  "aggregation": {
+    "total_questions": 5,
+    "hallucination_count": 1,
+    "hallucination_rate": 0.2,
+    "fopc": [
+      {
+        "predicate": "aggregate",
+        "args": [
+          "total"
+        ],
+        "value": 5,
+        "form": "total_questions(5)"
+      },
+      {
+        "predicate": "aggregate",
+        "args": [
+          "hallucination_count"
+        ],
+        "value": 1,
+        "form": "hallucination_count(1)"
+      },
+      {
+        "predicate": "rate_hallucinating",
+        "args": [
+          1,
+          5
+        ],
+        "value": 0.2,
+        "form": "rate_hallucinating(1, 5) = 20.00%"
+      }
+    ]
+  },
   "questions": [
     {
       "id": "q1",
@@ -23,21 +55,21 @@
           "args": [
             "q1"
           ],
-          "value": "\\cos(0) = 1 \\quad \\Rightarrow \\quad \\cos(0)^2 = 1^2 = 1"
+          "value": "\\sqrt{1805} + \\ln(e^5) + \\cos(0)^2 \\approx 42.5 + 5 + 1 = 48.5"
         },
         {
           "predicate": "llm_reasoning",
           "args": [
             "q1"
           ],
-          "value": "Let's solve the expression step by step:\n\n1. **Calculate \\( 34 \\times 52 \\)**:\n   \\[\n   34 \\times 52 = 1768\n   \\]\n\n2. **Add 73 to the result**:\n   \\[\n   1768 + 73 = 1841\n   \\]\n\n3. **Calculate \\( 144 /..."
+          "value": "To solve the expression step by step, we will break it down into parts:\n\n1. **Calculate \\( 34 \\times 52 \\)**:\n   \\[\n   34 \\times 52 = 1768\n   \\]\n\n2. **Add 73**:\n   \\[\n   1768 + 73 = 1841\n   \\]\n\n3. **C..."
         }
       ],
       "reasoning_trace": [
         {
           "rule": "numeric_match",
           "result": false,
-          "reason": "numeric_mismatch(w=[6.0, 19.0, 5.0], l=[0.0, 1.0, 0.0, 2.0, 1.0, 2.0, 1.0])"
+          "reason": "numeric_mismatch(w=[6.0, 19.0, 5.0], l=[1805.0, 5.0, 0.0, 2.0, 42.5, 5.0, 1.0, 48.5])"
         },
         {
           "rule": "symbolic_match",
@@ -45,12 +77,136 @@
           "reason": "symbolic_mismatch"
         },
         {
+          "rule": "confidence",
+          "result": "very_high",
+          "reason": "Relative error \u2248 870.00%; strong evidence of hallucination.",
+          "relative_error": 8.7
+        },
+        {
           "inference": "verdict",
           "predicate": "hallucinating",
           "premise": "numeric_match \u2228 symbolic_match"
+        },
+        {
+          "inference": "abduction",
+          "abduced_causes": [
+            {
+              "predicate": "abduced_cause",
+              "hypothesis": "numeric_error",
+              "form": "LLM may have made a numerical mistake (wrong constant, wrong operation, or rounding)."
+            },
+            {
+              "predicate": "abduced_cause",
+              "hypothesis": "symbolic_error",
+              "form": "LLM may have used a different (incorrect) symbolic form or expression."
+            },
+            {
+              "predicate": "abduced_cause",
+              "hypothesis": "both_numeric_and_symbolic",
+              "form": "Both numeric and symbolic mismatch; hallucination likely substantive."
+            }
+          ]
+        },
+        {
+          "inference": "chain",
+          "inference_chain": [
+            {
+              "step": 1,
+              "type": "premise",
+              "form": "P1: ground_truth(G)",
+              "value": "6 + 19 sqrt(5)"
+            },
+            {
+              "step": 2,
+              "type": "premise",
+              "form": "P2: llm_answer(L)",
+              "value": "\\sqrt{1805} + \\ln(e^5) + \\cos(0)^2 \\approx 42.5 + 5 + 1 = 48.5"
+            },
+            {
+              "step": 3,
+              "type": "observation",
+              "form": "P3: numeric_match(G,L) = False",
+              "value": false
+            },
+            {
+              "step": 4,
+              "type": "observation",
+              "form": "P4: symbolic_match(G,L) = False",
+              "value": false
+            },
+            {
+              "step": 5,
+              "type": "rule",
+              "form": "R: not_hallucinating \u2194 (P3 \u2228 P4)",
+              "value": null
+            },
+            {
+              "step": 6,
+              "type": "conclusion",
+              "form": "C: verdict = hallucinating",
+              "value": "hallucinating"
+            }
+          ]
         }
       ],
-      "verdict": "hallucinating"
+      "verdict": "hallucinating",
+      "abduced_causes": [
+        {
+          "predicate": "abduced_cause",
+          "hypothesis": "numeric_error",
+          "form": "LLM may have made a numerical mistake (wrong constant, wrong operation, or rounding)."
+        },
+        {
+          "predicate": "abduced_cause",
+          "hypothesis": "symbolic_error",
+          "form": "LLM may have used a different (incorrect) symbolic form or expression."
+        },
+        {
+          "predicate": "abduced_cause",
+          "hypothesis": "both_numeric_and_symbolic",
+          "form": "Both numeric and symbolic mismatch; hallucination likely substantive."
+        }
+      ],
+      "inference_chain": [
+        {
+          "step": 1,
+          "type": "premise",
+          "form": "P1: ground_truth(G)",
+          "value": "6 + 19 sqrt(5)"
+        },
+        {
+          "step": 2,
+          "type": "premise",
+          "form": "P2: llm_answer(L)",
+          "value": "\\sqrt{1805} + \\ln(e^5) + \\cos(0)^2 \\approx 42.5 + 5 + 1 = 48.5"
+        },
+        {
+          "step": 3,
+          "type": "observation",
+          "form": "P3: numeric_match(G,L) = False",
+          "value": false
+        },
+        {
+          "step": 4,
+          "type": "observation",
+          "form": "P4: symbolic_match(G,L) = False",
+          "value": false
+        },
+        {
+          "step": 5,
+          "type": "rule",
+          "form": "R: not_hallucinating \u2194 (P3 \u2228 P4)",
+          "value": null
+        },
+        {
+          "step": 6,
+          "type": "conclusion",
+          "form": "C: verdict = hallucinating",
+          "value": "hallucinating"
+        }
+      ],
+      "confidence": "very_high",
+      "relative_error": 8.7
     },
     {
       "id": "q2",
@@ -74,7 +230,7 @@
           "args": [
             "q2"
           ],
-          "value": "\\int x^4 \\sin(x) \\, dx = -x^4 \\cos(x) + 4x^3 \\sin(x) + 12x^2 \\cos(x) - 8x \\sin(x) - 8\\cos(x) + C"
+          "value": "\\int x^4 \\sin(x) \\, dx = -x^4 \\cos(x) + 4x^3 \\sin(x) + 12x^2 \\cos(x) - 24x \\sin(x) - 24 \\cos(x) + C"
         },
         {
           "predicate": "llm_reasoning",
@@ -87,8 +243,8 @@
       "reasoning_trace": [
         {
           "rule": "numeric_match",
-          "result": false,
-          "reason": "numeric_mismatch(w=[4.0, 4.0, 2.0, 6.0, 4.0, 12.0, 2.0, 24.0], l=[4.0, 4.0, 4.0, 3.0, 12.0, 2.0, 8.0, 8.0])"
+          "result": true,
+          "reason": "numeric_match(last: 24.0 ~ 24.0)"
         },
         {
           "rule": "symbolic_match",
@@ -96,12 +252,126 @@
           "reason": "symbolic_mismatch"
         },
         {
+          "rule": "confidence",
+          "result": "high",
+          "reason": "Relative error \u2248 0.00e+00 (match).",
+          "relative_error": 0.0
+        },
+        {
           "inference": "verdict",
-          "predicate": "hallucinating",
+          "predicate": "not_hallucinating",
           "premise": "numeric_match \u2228 symbolic_match"
+        },
+        {
+          "inference": "abduction",
+          "abduced_causes": [
+            {
+              "predicate": "abduced_cause",
+              "hypothesis": "symbolic_error",
+              "form": "LLM may have used a different (incorrect) symbolic form or expression."
+            },
+            {
+              "predicate": "abduced_cause",
+              "hypothesis": "form_difference_only",
+              "form": "Numbers agree but form differs (e.g. equivalent expression in different form)."
+            }
+          ]
+        },
+        {
+          "inference": "chain",
+          "inference_chain": [
+            {
+              "step": 1,
+              "type": "premise",
+              "form": "P1: ground_truth(G)",
+              "value": "integral x^4 sin(x) dx = 4 x (x^2 - 6) sin(x) - (x^4 - 12 x^2 + 24) cos(x) + con"
+            },
+            {
+              "step": 2,
+              "type": "premise",
+              "form": "P2: llm_answer(L)",
+              "value": "\\int x^4 \\sin(x) \\, dx = -x^4 \\cos(x) + 4x^3 \\sin(x) + 12x^2 \\cos(x) - 24x \\sin("
+            },
+            {
+              "step": 3,
+              "type": "observation",
+              "form": "P3: numeric_match(G,L) = True",
+              "value": true
+            },
+            {
+              "step": 4,
+              "type": "observation",
+              "form": "P4: symbolic_match(G,L) = False",
+              "value": false
+            },
+            {
+              "step": 5,
+              "type": "rule",
+              "form": "R: not_hallucinating \u2194 (P3 \u2228 P4)",
+              "value": null
+            },
+            {
+              "step": 6,
+              "type": "conclusion",
+              "form": "C: verdict = not_hallucinating",
+              "value": "not_hallucinating"
+            }
+          ]
         }
       ],
-      "verdict": "hallucinating"
+      "verdict": "not_hallucinating",
+      "abduced_causes": [
+        {
+          "predicate": "abduced_cause",
+          "hypothesis": "symbolic_error",
+          "form": "LLM may have used a different (incorrect) symbolic form or expression."
+        },
+        {
+          "predicate": "abduced_cause",
+          "hypothesis": "form_difference_only",
+          "form": "Numbers agree but form differs (e.g. equivalent expression in different form)."
+        }
+      ],
+      "inference_chain": [
+        {
+          "step": 1,
+          "type": "premise",
+          "form": "P1: ground_truth(G)",
+          "value": "integral x^4 sin(x) dx = 4 x (x^2 - 6) sin(x) - (x^4 - 12 x^2 + 24) cos(x) + con"
+        },
+        {
+          "step": 2,
+          "type": "premise",
+          "form": "P2: llm_answer(L)",
+          "value": "\\int x^4 \\sin(x) \\, dx = -x^4 \\cos(x) + 4x^3 \\sin(x) + 12x^2 \\cos(x) - 24x \\sin("
+        },
+        {
+          "step": 3,
+          "type": "observation",
+          "form": "P3: numeric_match(G,L) = True",
+          "value": true
+        },
+        {
+          "step": 4,
+          "type": "observation",
+          "form": "P4: symbolic_match(G,L) = False",
+          "value": false
+        },
+        {
+          "step": 5,
+          "type": "rule",
+          "form": "R: not_hallucinating \u2194 (P3 \u2228 P4)",
+          "value": null
+        },
+        {
+          "step": 6,
+          "type": "conclusion",
+          "form": "C: verdict = not_hallucinating",
+          "value": "not_hallucinating"
+        }
+      ],
+      "confidence": "high",
+      "relative_error": 0.0
     },
     {
       "id": "q3",
@@ -132,7 +402,7 @@
           "args": [
             "q3"
           ],
-          "value": "To solve the quadratic equation \\( x^2 - 5x + 6 = 0 \\), we can factor the equation.\n\n1. **Identify the coefficients**: The equation is in the standard form \\( ax^2 + bx + c = 0 \\), where \\( a = 1 \\), ..."
+          "value": "To solve the quadratic equation \\( x^2 - 5x + 6 = 0 \\), we can factor the equation.\n\n1. **Identify the coefficients**: The equation is in the form \\( ax^2 + bx + c = 0 \\), where \\( a = 1 \\), \\( b = -5..."
         }
       ],
       "reasoning_trace": [
@@ -147,12 +417,116 @@
           "reason": "symbolic_substring_match"
         },
         {
+          "rule": "confidence",
+          "result": "very_high",
+          "reason": "Relative error \u2248 50.00%; strong evidence of hallucination.",
+          "relative_error": 0.5
+        },
+        {
           "inference": "verdict",
           "predicate": "not_hallucinating",
           "premise": "numeric_match \u2228 symbolic_match"
+        },
+        {
+          "inference": "abduction",
+          "abduced_causes": [
+            {
+              "predicate": "abduced_cause",
+              "hypothesis": "numeric_error",
+              "form": "LLM may have made a numerical mistake (wrong constant, wrong operation, or rounding)."
+            }
+          ]
+        },
+        {
+          "inference": "chain",
+          "inference_chain": [
+            {
+              "step": 1,
+              "type": "premise",
+              "form": "P1: ground_truth(G)",
+              "value": "x = 2"
+            },
+            {
+              "step": 2,
+              "type": "premise",
+              "form": "P2: llm_answer(L)",
+              "value": "x = 2 \\quad \\text{and} \\quad x = 3"
+            },
+            {
+              "step": 3,
+              "type": "observation",
+              "form": "P3: numeric_match(G,L) = False",
+              "value": false
+            },
+            {
+              "step": 4,
+              "type": "observation",
+              "form": "P4: symbolic_match(G,L) = True",
+              "value": true
+            },
+            {
+              "step": 5,
+              "type": "rule",
+              "form": "R: not_hallucinating \u2194 (P3 \u2228 P4)",
+              "value": null
+            },
+            {
+              "step": 6,
+              "type": "conclusion",
+              "form": "C: verdict = not_hallucinating",
+              "value": "not_hallucinating"
+            }
+          ]
         }
       ],
-      "verdict": "not_hallucinating"
+      "verdict": "not_hallucinating",
+      "abduced_causes": [
+        {
+          "predicate": "abduced_cause",
+          "hypothesis": "numeric_error",
+          "form": "LLM may have made a numerical mistake (wrong constant, wrong operation, or rounding)."
+        }
+      ],
+      "inference_chain": [
+        {
+          "step": 1,
+          "type": "premise",
+          "form": "P1: ground_truth(G)",
+          "value": "x = 2"
+        },
+        {
+          "step": 2,
+          "type": "premise",
+          "form": "P2: llm_answer(L)",
+          "value": "x = 2 \\quad \\text{and} \\quad x = 3"
+        },
+        {
+          "step": 3,
+          "type": "observation",
+          "form": "P3: numeric_match(G,L) = False",
+          "value": false
+        },
+        {
+          "step": 4,
+          "type": "observation",
+          "form": "P4: symbolic_match(G,L) = True",
+          "value": true
+        },
+        {
+          "step": 5,
+          "type": "rule",
+          "form": "R: not_hallucinating \u2194 (P3 \u2228 P4)",
+          "value": null
+        },
+        {
+          "step": 6,
+          "type": "conclusion",
+          "form": "C: verdict = not_hallucinating",
+          "value": "not_hallucinating"
+        }
+      ],
+      "confidence": "very_high",
+      "relative_error": 0.5
     },
     {
       "id": "q4",
@@ -198,12 +572,126 @@
           "reason": "symbolic_mismatch"
         },
         {
+          "rule": "confidence",
+          "result": "high",
+          "reason": "Relative error \u2248 0.00e+00 (match).",
+          "relative_error": 0.0
+        },
+        {
           "inference": "verdict",
           "predicate": "not_hallucinating",
           "premise": "numeric_match \u2228 symbolic_match"
+        },
+        {
+          "inference": "abduction",
+          "abduced_causes": [
+            {
+              "predicate": "abduced_cause",
+              "hypothesis": "symbolic_error",
+              "form": "LLM may have used a different (incorrect) symbolic form or expression."
+            },
+            {
+              "predicate": "abduced_cause",
+              "hypothesis": "form_difference_only",
+              "form": "Numbers agree but form differs (e.g. equivalent expression in different form)."
+            }
+          ]
+        },
+        {
+          "inference": "chain",
+          "inference_chain": [
+            {
+              "step": 1,
+              "type": "premise",
+              "form": "P1: ground_truth(G)",
+              "value": "d/dx(x^3 e^x) = e^x x^2 (x + 3)"
+            },
+            {
+              "step": 2,
+              "type": "premise",
+              "form": "P2: llm_answer(L)",
+              "value": "f'(x) = e^x(3x^2 + x^3)"
+            },
+            {
+              "step": 3,
+              "type": "observation",
+              "form": "P3: numeric_match(G,L) = True",
+              "value": true
+            },
+            {
+              "step": 4,
+              "type": "observation",
+              "form": "P4: symbolic_match(G,L) = False",
+              "value": false
+            },
+            {
+              "step": 5,
+              "type": "rule",
+              "form": "R: not_hallucinating \u2194 (P3 \u2228 P4)",
+              "value": null
+            },
+            {
+              "step": 6,
+              "type": "conclusion",
+              "form": "C: verdict = not_hallucinating",
+              "value": "not_hallucinating"
+            }
+          ]
         }
       ],
-      "verdict": "not_hallucinating"
+      "verdict": "not_hallucinating",
+      "abduced_causes": [
+        {
+          "predicate": "abduced_cause",
+          "hypothesis": "symbolic_error",
+          "form": "LLM may have used a different (incorrect) symbolic form or expression."
+        },
+        {
+          "predicate": "abduced_cause",
+          "hypothesis": "form_difference_only",
+          "form": "Numbers agree but form differs (e.g. equivalent expression in different form)."
+        }
+      ],
+      "inference_chain": [
+        {
+          "step": 1,
+          "type": "premise",
+          "form": "P1: ground_truth(G)",
+          "value": "d/dx(x^3 e^x) = e^x x^2 (x + 3)"
+        },
+        {
+          "step": 2,
+          "type": "premise",
+          "form": "P2: llm_answer(L)",
+          "value": "f'(x) = e^x(3x^2 + x^3)"
+        },
+        {
+          "step": 3,
+          "type": "observation",
+          "form": "P3: numeric_match(G,L) = True",
+          "value": true
+        },
+        {
+          "step": 4,
+          "type": "observation",
+          "form": "P4: symbolic_match(G,L) = False",
+          "value": false
+        },
+        {
+          "step": 5,
+          "type": "rule",
+          "form": "R: not_hallucinating \u2194 (P3 \u2228 P4)",
+          "value": null
+        },
+        {
+          "step": 6,
+          "type": "conclusion",
+          "form": "C: verdict = not_hallucinating",
+          "value": "not_hallucinating"
+        }
+      ],
+      "confidence": "high",
+      "relative_error": 0.0
     },
     {
       "id": "q5",
@@ -227,14 +715,14 @@
           "args": [
             "q5"
           ],
-          "value": "\\lim_{x \\to 0} \\frac{\\sin(x)}{x} = 1"
+          "value": "\\lim_{x \\to 0} \\cos(x) = \\cos(0) = 1"
         },
         {
           "predicate": "llm_reasoning",
           "args": [
             "q5"
           ],
-          "value": "To find the limit of \\(\\frac{\\sin(x)}{x}\\) as \\(x\\) approaches 0, we can use the following reasoning:\n\n1. **Direct Substitution**: If we directly substitute \\(x = 0\\) into \\(\\frac{\\sin(x)}{x}\\), we ge..."
+          "value": "To find the limit of \\(\\frac{\\sin(x)}{x}\\) as \\(x\\) approaches 0, we can use the following reasoning:\n\n1. **Direct Substitution**: If we directly substitute \\(x = 0\\) into the expression \\(\\frac{\\sin(..."
         }
       ],
       "reasoning_trace": [
@@ -249,12 +737,126 @@
           "reason": "symbolic_mismatch"
         },
         {
+          "rule": "confidence",
+          "result": "high",
+          "reason": "Relative error \u2248 0.00e+00 (match).",
+          "relative_error": 0.0
+        },
+        {
           "inference": "verdict",
           "predicate": "not_hallucinating",
           "premise": "numeric_match \u2228 symbolic_match"
+        },
+        {
+          "inference": "abduction",
+          "abduced_causes": [
+            {
+              "predicate": "abduced_cause",
+              "hypothesis": "symbolic_error",
+              "form": "LLM may have used a different (incorrect) symbolic form or expression."
+            },
+            {
+              "predicate": "abduced_cause",
+              "hypothesis": "form_difference_only",
+              "form": "Numbers agree but form differs (e.g. equivalent expression in different form)."
+            }
+          ]
+        },
+        {
+          "inference": "chain",
+          "inference_chain": [
+            {
+              "step": 1,
+              "type": "premise",
+              "form": "P1: ground_truth(G)",
+              "value": "lim_(x->0) sin(x)/x = 1"
+            },
+            {
+              "step": 2,
+              "type": "premise",
+              "form": "P2: llm_answer(L)",
+              "value": "\\lim_{x \\to 0} \\cos(x) = \\cos(0) = 1"
+            },
+            {
+              "step": 3,
+              "type": "observation",
+              "form": "P3: numeric_match(G,L) = True",
+              "value": true
+            },
+            {
+              "step": 4,
+              "type": "observation",
+              "form": "P4: symbolic_match(G,L) = False",
+              "value": false
+            },
+            {
+              "step": 5,
+              "type": "rule",
+              "form": "R: not_hallucinating \u2194 (P3 \u2228 P4)",
+              "value": null
+            },
+            {
+              "step": 6,
+              "type": "conclusion",
+              "form": "C: verdict = not_hallucinating",
+              "value": "not_hallucinating"
+            }
+          ]
         }
       ],
-      "verdict": "not_hallucinating"
+      "verdict": "not_hallucinating",
+      "abduced_causes": [
+        {
+          "predicate": "abduced_cause",
+          "hypothesis": "symbolic_error",
+          "form": "LLM may have used a different (incorrect) symbolic form or expression."
+        },
+        {
+          "predicate": "abduced_cause",
+          "hypothesis": "form_difference_only",
+          "form": "Numbers agree but form differs (e.g. equivalent expression in different form)."
+        }
+      ],
+      "inference_chain": [
+        {
+          "step": 1,
+          "type": "premise",
+          "form": "P1: ground_truth(G)",
+          "value": "lim_(x->0) sin(x)/x = 1"
+        },
+        {
+          "step": 2,
+          "type": "premise",
+          "form": "P2: llm_answer(L)",
+          "value": "\\lim_{x \\to 0} \\cos(x) = \\cos(0) = 1"
+        },
+        {
+          "step": 3,
+          "type": "observation",
+          "form": "P3: numeric_match(G,L) = True",
+          "value": true
+        },
+        {
+          "step": 4,
+          "type": "observation",
+          "form": "P4: symbolic_match(G,L) = False",
+          "value": false
+        },
+        {
+          "step": 5,
+          "type": "rule",
+          "form": "R: not_hallucinating \u2194 (P3 \u2228 P4)",
+          "value": null
+        },
+        {
+          "step": 6,
+          "type": "conclusion",
+          "form": "C: verdict = not_hallucinating",
+          "value": "not_hallucinating"
+        }
+      ],
+      "confidence": "high",
+      "relative_error": 0.0
     }
   ]
 }
