@@ -74,6 +74,23 @@ def _extract_latex_expression(answer: str) -> str | None:
     return matches[-1].group(1).strip()
 
 
+def _extract_single_number(text: str) -> float | None:
+    """
+    Extract a numeric value from text when it's not a parseable expression
+    (e.g. "It takes 8 days" or "**Final Answer**: 8"). Prefer the last number
+    that looks like a standalone answer (integer or decimal).
+    """
+    # Find all numbers (integers and decimals)
+    nums = re.findall(r"-?\d+\.?\d*", text)
+    if not nums:
+        return None
+    try:
+        # Use last number as heuristic for "the answer is X"
+        return float(nums[-1])
+    except ValueError:
+        return None
+
+
 def _extract_expression_from_text(answer: str) -> str | None:
     """
     Try to extract a math expression from an LLM's natural-language answer.
@@ -90,13 +107,19 @@ def _extract_expression_from_text(answer: str) -> str | None:
             return latex_expr.split("=", 1)[0].strip()
         return latex_expr
 
-    # 2) Non-LaTeX: scan lines
+    # 2) Non-LaTeX: scan lines; prefer lines that look like math (have operators)
     lines = [l.strip() for l in answer.splitlines() if l.strip()]
     candidate = None
     for line in reversed(lines):
         if re.search(r"[0-9]", line) and re.search(r"[+\-*/÷×()]", line):
             candidate = line
             break
+    if not candidate:
+        # 3) Last resort: line with digits that might be "Answer: 8" or "8 days"
+        for line in reversed(lines):
+            if re.search(r"\d+", line) and not line.startswith("**") and "final answer" not in line.lower()[:30]:
+                candidate = line
+                break
     if not candidate:
         return None
     if "=" in candidate:
@@ -108,10 +131,13 @@ def _normalize_expression(expr: str) -> str:
     """
     Normalize an arithmetic expression string into something Python's AST can parse.
     Handles:
-      - LaTeX / Unicode division (\\div, ÷) and multiplication (×)
+      - LaTeX \\text{...} (strip contents so "7 \\text{ feet}" -> "7")
+      - LaTeX / Unicode division (\\div, ÷) and multiplication (\\times, ×)
       - Implicit whitespace
     """
     s = expr.strip()
+    # Remove LaTeX \text{...} so "7 \text{ feet} + 3" -> "7 + 3"
+    s = re.sub(r"\\text\s*\{[^}]*\}", "", s)
     # Replace common division / multiplication markers with Python operators
     s = (
         s.replace("\\div", "/")
@@ -121,7 +147,7 @@ def _normalize_expression(expr: str) -> str:
     )
     # Remove repeated spaces
     s = re.sub(r"\s+", " ", s)
-    return s
+    return s.strip()
 
 
 class SafeEvaluator(ast.NodeVisitor):
@@ -198,6 +224,22 @@ def check_llm_answer(answer_text: str, target: float, tolerance: float = NUMERIC
     try:
         value = safe_eval(expr)
     except Exception as e:
+        # Fallback: extract a single number from the line (e.g. "It takes 8 days" -> 8)
+        fallback_value = _extract_single_number(expr)
+        if fallback_value is None:
+            fallback_value = _extract_single_number(answer_text)
+        if fallback_value is not None:
+            value = fallback_value
+            diff = value - target
+            is_ok = math.isfinite(value) and abs(diff) <= tolerance
+            return CheckResult(
+                is_correct=is_ok,
+                expression=expr,
+                value=value,
+                target=target,
+                difference=diff,
+                error=None,
+            )
         return CheckResult(
             is_correct=False,
             expression=expr,
