@@ -4,6 +4,7 @@ Uses Wolfram Alpha for ground truth; tabular + FOPC-style reasoning; rule-based 
 Set OPENAI_API_KEY in the environment or in a .env file to use real ChatGPT output.
 """
 import ast
+import itertools
 import json
 import math
 import os
@@ -296,14 +297,56 @@ def build_inference_chain(gt_text: str, llm_answer: str, num_ok: bool, sym_ok: b
 # -------------------------
 # Step-by-step breakdown (order of operations) + FOPC
 # -------------------------
-def _normalize_expr_for_ast(expr: str) -> str:
-    """Prepare expression for ast.parse: ^ -> **, ln( -> log(, π -> pi."""
+def normalize_expression_input(expr: str) -> str:
+    """
+    Normalize expression before sending to Wolfram and our parser so both see the same thing.
+    - Strip invisible/function-application chars (e.g. ⁡ U+2061 from pasted Wolfram output)
+    - Unicode math symbols -> ASCII so Wolfram and we parse the same
+    - Fix e(99) -> e**99 and "2 6" -> 2**6 so exponentiation is unambiguous
+    - Collapse whitespace so display and parsing are consistent
+    """
+    if not expr or not isinstance(expr, str):
+        return expr or ""
     s = expr.strip()
+    # Remove Unicode function application (⁡) and other invisible characters that break display and parsing
+    for code in ("\u2061", "\u2062", "\u2063", "\u200b", "\u200c", "\u200d", "\ufeff"):
+        s = s.replace(code, "")
+    # Unicode math symbols -> ASCII (same as in _normalize_expr_for_ast so Wolfram and parser agree)
+    s = s.replace("\u2212", "-")   # − (minus)
+    s = s.replace("\u00d7", "*")   # ×
+    s = s.replace("\u22c5", "*")   # ⋅ (dot)
+    s = s.replace("\u2217", "*")   # ∗ (asterisk operator)
+    s = s.replace("\u00f7", "/")   # ÷
+    # ^ -> ** so Wolfram and our parser see the same exponentiation
+    s = re.sub(r"\^", "**", s)
+    # e(99) or e (99) often means e^99 when pasted; make it explicit so Wolfram and we agree
+    s = re.sub(r"\be\s*\(\s*(\d+)\s*\)", r"e**\1", s, flags=re.IGNORECASE)
+    # e99 or e 99 (e followed by digits) -> e**99
+    s = re.sub(r"\be\s*(\d+)\b", r"e**\1", s, flags=re.IGNORECASE)
+    # "2 6" (single-digit space single-digit) often means 2^6 when pasted; make it explicit
+    s = re.sub(r"\b(\d)\s+(\d)\b", r"\1**\2", s)
+    # Collapse multiple spaces/newlines to single space
+    s = re.sub(r"\s+", " ", s)
+    return s.strip()
+
+
+def _normalize_expr_for_ast(expr: str) -> str:
+    """Prepare expression for ast.parse: ^ -> **, ln( -> log(, π -> pi, Unicode -> ASCII, implicit *."""
+    s = expr.strip()
+    # Unicode math symbols -> ASCII (e.g. pasted from Wolfram or rich text)
+    s = s.replace("\u2212", "-")   # − (minus)
+    s = s.replace("\u00d7", "*")  # ×
+    s = s.replace("\u22c5", "*")  # ⋅ (dot)
+    s = s.replace("\u2217", "*")  # ∗ (asterisk operator)
+    s = s.replace("\u00f7", "/")   # ÷
     # Replace ^ with ** (careful: don't break **)
     s = re.sub(r"\^", "**", s)
     s = re.sub(r"\bln\s*\(", "log(", s, flags=re.IGNORECASE)
     # Greek π (U+03C0) / Π (U+03A0) as identifier → pi so visit_Name recognizes it
     s = s.replace("\u03c0", "pi").replace("\u03a0", "pi")
+    # Implicit multiplication: number( -> number*(  and )( -> )*(
+    s = re.sub(r"(\d)\s*\(", r"\1*(", s)
+    s = re.sub(r"\)\s*\(", ")*(", s)
     return s
 
 
@@ -480,6 +523,9 @@ def _back_solve_required_values(
         if subexpr and by_subexpr.get(subexpr, {}).get("op"):
             root_subexpr = subexpr
             break
+    # If no step had op (e.g. single synthetic step), use the full expression as root so we still produce one localization row
+    if not root_subexpr and steps:
+        root_subexpr = steps[-1].get("subexpr")
     if not root_subexpr:
         return []
     def _child_value(sub: str):
@@ -528,14 +574,14 @@ def _back_solve_required_values(
             left_sub, right_sub = children[0], children[1]
             left_val = _child_value(left_sub)
             right_val = _child_value(right_sub)
-            if right_val is not None and abs(right_val) > 1e-12 and left_val is not None:
+            if right_val is not None and abs(right_val) > 1e-12 and left_val is not None and abs(R) > 1e-12:
                 required[left_sub] = R * right_val
                 required[right_sub] = left_val / R
         elif op == "pow" and len(children) >= 2:
             left_sub, right_sub = children[0], children[1]
             left_val = _child_value(left_sub)
             right_val = _child_value(right_sub)
-            if left_val is not None and right_val is not None and left_val > 0 and R > 0:
+            if left_val is not None and right_val is not None and left_val > 0 and R > 0 and abs(right_val) > 1e-12:
                 try:
                     required[left_sub] = R ** (1.0 / right_val)
                     required[right_sub] = math.log(R) / math.log(left_val) if left_val != 1 else 0
@@ -570,6 +616,25 @@ def _back_solve_required_values(
             "discrepancy": disc,
             "abs_discrepancy": abs(disc),
         })
+    # If no row was added (e.g. root subexpr string didn't match any step), add the root so we always have at least one localization row
+    if not out and root_subexpr and root_subexpr in by_subexpr:
+        actual_final = by_subexpr[root_subexpr].get("value")
+        req = required.get(root_subexpr)
+        if actual_final is not None and req is not None:
+            step_index = 9999
+            for s in steps:
+                if s.get("subexpr") == root_subexpr:
+                    step_index = s.get("step_index", 9999)
+                    break
+            disc = req - actual_final
+            out.append({
+                "step_index": step_index,
+                "subexpr": root_subexpr,
+                "actual_value": actual_final,
+                "required_value_to_reach_target": req,
+                "discrepancy": disc,
+                "abs_discrepancy": abs(disc),
+            })
     # Combo that sums to the gap = root's direct children; their (actual - required) sum to total_gap
     root_children = by_subexpr.get(root_subexpr, {}).get("children") or []
     actual_final = by_subexpr.get(root_subexpr, {}).get("value")
@@ -595,67 +660,85 @@ def _back_solve_required_values(
             "abs_discrepancy": abs(disc),
         })
         out_subexprs.add(sub)
+    # Contribution of each step toward the total gap: (actual - required). We want a subset that sums to total_gap.
     for loc in out:
-        loc["in_gap_combo"] = loc["subexpr"] in root_children
-    # If no child is in out (e.g. constants), treat root as the single "combo" member so sum still equals gap
-    if not any(loc.get("in_gap_combo") for loc in out) and len(out) >= 1 and total_gap is not None:
-        for loc in out:
-            if loc["subexpr"] == root_subexpr:
-                loc["in_gap_combo"] = True
-                break
-    root_op = by_subexpr.get(root_subexpr, {}).get("op")
-    # For subtraction: (actual_L - required_L) + (actual_R - required_R) = 0 (always). So include only the child whose contribution equals total_gap.
-    if root_op == "sub" and total_gap is not None and root_children:
-        for loc in out:
-            if not loc.get("in_gap_combo"):
-                continue
-            contrib = loc["actual_value"] - loc["required_value_to_reach_target"]
-            # Keep in combo only if this part's contribution equals the total gap (the one that "accounts for" the error)
-            if abs(contrib - total_gap) > tolerance:
-                loc["in_gap_combo"] = False
-    # For add, back-solve required values are from different counterfactuals; adjust so combo (actual−required) sums exactly to total_gap
-    elif root_op == "add" and total_gap is not None and root_children:
-        # Required choices: need sum(actual_i - required_i) = total_gap with required_i so that interpretation is consistent.
-        # Set one child's required = actual (contribution 0), other(s) take the rest. Pick child with smallest |discrepancy| to get 0.
-        combo_locs = [loc for loc in out if loc.get("in_gap_combo")]
-        if combo_locs:
-            by_sub = {loc["subexpr"]: loc for loc in combo_locs}
-            actual_vals = {sub: _child_value(sub) for sub in root_children}
-            # Who gets contribution 0? The one with smallest abs(discrepancy) so we "blame" the part that's most off
-            combo_locs_sorted = sorted(combo_locs, key=lambda x: x["abs_discrepancy"])
-            zero_sub = combo_locs_sorted[0]["subexpr"]
-            # required for zero_sub = actual; for others required = claimed_target - sum(actual of zero_sub and others we set to 0)
-            # So: required[zero_sub] = actual_vals[zero_sub]. Others: we need sum(actual - required) = total_gap. So sum(required) = sum(actual) - total_gap = claimed_target.
-            # required[zero_sub] = actual_vals[zero_sub]. So sum(required others) = claimed_target - actual_vals[zero_sub].
-            # For one other: required[other] = claimed_target - actual_vals[zero_sub]. For two others: split?
-            # General: required[zero_sub]=actual_vals[zero_sub]. For each other child, required[other] = actual_vals[other] - (share of total_gap). So we assign full total_gap to the non-zero children. With two children total, one has contribution 0, one has contribution total_gap. So required[non_zero] = actual_vals[non_zero] - total_gap.
-            for sub in root_children:
-                loc = by_sub.get(sub)
-                if not loc:
-                    continue
-                if sub == zero_sub:
-                    req = actual_vals[sub]
-                else:
-                    req = actual_vals[sub] - total_gap  # so (actual - required) = total_gap for this one
-                loc["required_value_to_reach_target"] = req
-                loc["discrepancy"] = req - loc["actual_value"]
-                loc["abs_discrepancy"] = abs(loc["discrepancy"])
-    # Exclude from combo any part whose contribution (actual − required) is effectively zero
+        loc["_contrib"] = loc["actual_value"] - loc["required_value_to_reach_target"]
+
+    def _is_trivial_subexpr(subexpr: str) -> bool:
+        """True if subexpr is just a number or parenthesized number (e.g. '42', '(-10000)')."""
+        if not subexpr or not isinstance(subexpr, str):
+            return True
+        s = subexpr.strip().strip("()").strip()
+        if not s:
+            return True
+        try:
+            float(s)
+            return True
+        except (ValueError, TypeError):
+            return False
+
+    # Find subset of steps that account for total_gap. Two ways to "account for" the gap:
+    # (1) Contributions (actual - required) sum to total_gap — from back-solve.
+    # (2) When total_gap > 0: actual values of steps sum to total_gap (e.g. ln(e^99)=99 and 2^6=64 sum to 163).
+    # Prefer (2) when it yields a larger subset (more granular), else use (1). Prefer larger subsets in both cases.
+    gap_combo_indices: set[int] = set()
+    if total_gap is not None and abs(total_gap) >= tolerance:
+        n = len(out)
+        best_combo: set[int] | None = None
+        # Strategy A: steps whose *actual values* sum to total_gap (for positive gap: "these terms add up to the excess")
+        if total_gap > tolerance:
+            # Only steps with positive actual value that could be part of a sum; exclude trivial (bare constants)
+            candidates_actual = [
+                i for i in range(n)
+                if out[i]["actual_value"] > tolerance
+                and out[i]["actual_value"] <= total_gap + tolerance
+                and not _is_trivial_subexpr(out[i]["subexpr"])
+            ]
+            max_size = min(12, len(candidates_actual))
+            for size in range(max_size, 0, -1):
+                for idx_combo in itertools.combinations(candidates_actual, size):
+                    s = sum(out[i]["actual_value"] for i in idx_combo)
+                    if abs(s - total_gap) <= tolerance:
+                        best_combo = set(idx_combo)
+                        break
+                if best_combo is not None:
+                    break
+        # Strategy B: steps whose contributions (actual - required) sum to total_gap
+        if best_combo is None:
+            same_sign = [
+                i for i in range(n)
+                if abs(out[i]["_contrib"]) >= tolerance
+                and (out[i]["_contrib"] * total_gap) >= 0
+                and not _is_trivial_subexpr(out[i]["subexpr"])
+            ]
+            if not same_sign:
+                same_sign = [i for i in range(n) if abs(out[i]["_contrib"]) >= tolerance and not _is_trivial_subexpr(out[i]["subexpr"])]
+            max_subset_size = min(12, len(same_sign))
+            for size in range(max_subset_size, 0, -1):
+                for idx_combo in itertools.combinations(same_sign, size):
+                    s = sum(out[i]["_contrib"] for i in idx_combo)
+                    if abs(s - total_gap) <= tolerance:
+                        best_combo = set(idx_combo)
+                        break
+                if best_combo is not None:
+                    break
+        # Reject combo if it's only trivial steps (e.g. "(-10000)"); prefer real subexpressions
+        if best_combo is not None and all(_is_trivial_subexpr(out[i]["subexpr"]) for i in best_combo):
+            best_combo = None
+        if best_combo is not None:
+            gap_combo_indices = best_combo
+        else:
+            # Fallback: single step whose contribution equals total_gap (skip trivial)
+            for i in range(n):
+                if not _is_trivial_subexpr(out[i]["subexpr"]) and abs(out[i]["_contrib"] - total_gap) <= tolerance:
+                    gap_combo_indices = {i}
+                    break
+        # Do not mark any step as "accounts for error" when we couldn't find a combo that sums to total_gap
+        # (no root_children fallback — that would default to first step and be misleading)
+    for i, loc in enumerate(out):
+        loc["in_gap_combo"] = i in gap_combo_indices
     for loc in out:
-        if loc.get("in_gap_combo"):
-            contrib = loc["actual_value"] - loc["required_value_to_reach_target"]
-            if abs(contrib) < tolerance:
-                loc["in_gap_combo"] = False
-    # Prefer the first step (in evaluation order) that accounts for the total error, so we point to "first occurrence"
-    if total_gap is not None:
-        candidates = [
-            loc for loc in out
-            if abs((loc["actual_value"] - loc["required_value_to_reach_target"]) - total_gap) < tolerance
-        ]
-        if candidates:
-            first_in_order = min(candidates, key=lambda x: x["step_index"] if x.get("step_index") is not None else 9999)
-            for loc in out:
-                loc["in_gap_combo"] = loc is first_in_order
+        loc.pop("_contrib", None)
     combo_sum = sum(loc["discrepancy"] for loc in out if loc.get("in_gap_combo"))
     for loc in out:
         loc["gap_combo_sum"] = combo_sum if loc.get("in_gap_combo") else None
@@ -717,7 +800,7 @@ def _hallucination_location_explanation(
             lines.append(f"     {step_label}  →  (actual − required) = {contrib:+.4g}")
         lines.append(f"     Sum = {contrib_str} = {contrib_sum:+.4g}  (= total gap {total_gap:+.4g})")
     else:
-        lines.append(f"→ The equation's total does not equal {claimed_target}; total gap = {total_gap:+.4g}.")
+        lines.append(f"→ The equation's total does not equal {claimed_target}; total gap = {total_gap:+.4g}. Unsure of where it went wrong (could not identify which sub-expressions account for the gap).")
     return "\n".join(lines)
 
 
@@ -736,6 +819,16 @@ def step_by_step_breakdown_and_fopc(
     actual = actual_value if actual_value is not None else computed
     equals_claimed = actual is not None and claimed_target is not None and abs(actual - claimed_target) <= tolerance
 
+    # When our parser produced no steps (e.g. expression syntax we don't handle), still provide step-by-step and where it diverges using Wolfram's result
+    if not steps and actual is not None:
+        steps = [{
+            "step_index": 1,
+            "subexpr": llm_equation.strip()[:500],
+            "value": actual,
+            "op": None,
+            "children": [],
+        }]
+
     # Back-solve from claimed_target to find where equation diverges (our own derivation, not ChatGPT)
     hallucination_location: list[dict] = []
     location_explanation = ""
@@ -744,6 +837,56 @@ def step_by_step_breakdown_and_fopc(
         location_explanation = _hallucination_location_explanation(
             hallucination_location, claimed_target, actual, tolerance
         )
+    # When back-solve returned nothing: only use a single full-equation row when we had no real breakdown (synthetic step only).
+    # When we have real steps (parse succeeded), keep full breakdown: either we already have hallucination_location from back-solve,
+    # or build a breakdown from steps so "Where it diverges" shows each sub-expression like Ask equation.
+    if not equals_claimed and actual is not None and not hallucination_location:
+        is_synthetic_only = len(steps) == 1 and steps[0].get("op") is None
+        if is_synthetic_only:
+            gap = actual - claimed_target
+            hallucination_location = [{
+                "step_index": 1,
+                "subexpr": llm_equation.strip()[:500],
+                "actual_value": actual,
+                "required_value_to_reach_target": claimed_target,
+                "discrepancy": claimed_target - actual,
+                "abs_discrepancy": abs(gap),
+                "in_gap_combo": False,
+            }]
+            location_explanation = (
+                f"Claimed target: {claimed_target}  |  Actual result: {actual}  |  Gap = {gap:+.4g}. "
+                "Sub-expression breakdown was not available (could not trace). Unsure of where it went wrong."
+            )
+        else:
+            # Real steps but back-solve gave nothing: show full breakdown (one row per step) like Ask equation
+            root_subexpr = None
+            for s in reversed(steps):
+                if s.get("op"):
+                    root_subexpr = s.get("subexpr")
+                    break
+            if not root_subexpr and steps:
+                root_subexpr = steps[-1].get("subexpr")
+            for s in steps:
+                subexpr = s.get("subexpr")
+                if not subexpr:
+                    continue
+                val = s.get("value")
+                if val is None:
+                    continue
+                req = claimed_target if subexpr == root_subexpr else val
+                disc = req - val
+                hallucination_location.append({
+                    "step_index": s.get("step_index", 9999),
+                    "subexpr": subexpr,
+                    "actual_value": val,
+                    "required_value_to_reach_target": req,
+                    "discrepancy": disc,
+                    "abs_discrepancy": abs(disc),
+                    "in_gap_combo": False,  # no verified combo when built from steps without back-solve
+                })
+            location_explanation = _hallucination_location_explanation(
+                hallucination_location, claimed_target, actual, tolerance
+            )
 
     # FOPC: step(i, subexpr, value) for each step; result(actual); claimed(claimed_target);
     # equals(claimed, actual) or ¬equals(claimed, actual); incorrect(claimed); required(subexpr) for localization
@@ -1065,6 +1208,8 @@ def validate_equation_claim(
     Validate: LLM claimed an equation equals `target`. Check with Wolfram.
     Returns row with verdict, actual_value, reasoning trace (FOPC-style), and language.
     """
+    # Normalize so Wolfram and our parser see the same expression (strip ⁡, fix e(99)->e**99, etc.)
+    llm_equation = normalize_expression_input(llm_equation)
     try:
         ground = get_ground_truth(llm_equation)
     except Exception as e:
@@ -1180,13 +1325,215 @@ def _wolfram_friendly_query(word_problem: str) -> str | None:
 
 
 # -------------------------
+# Narrative reasoning for word problems (data-driven, no LLM; optional LLM cleanup for language only)
+# -------------------------
+def _humanize_rule_reason(rule: str, reason: str) -> str:
+    """Turn rule output (e.g. numeric_match reason) into a short human-readable sentence."""
+    if not reason:
+        return ""
+    # numeric_match(last: 8 ~ 8) -> "The main numbers match (8 and 8)."
+    m = re.match(r"numeric_match\(last:\s*([\d.e+-]+)\s*~\s*([\d.e+-]+)\)", reason)
+    if m:
+        return f"The main numbers match (ground truth {m.group(1)}, your answer {m.group(2)})."
+    if reason == "numeric_match(all)":
+        return "All numbers in your answer match the ground truth."
+    # numeric_mismatch(w=[8], l=[10])
+    m = re.match(r"numeric_mismatch\(w=\[([^\]]*)\],\s*l=\[([^\]]*)\]\)", reason)
+    if m:
+        return f"The numbers differ: ground truth gives {m.group(1).strip()}, your answer gives {m.group(2).strip()}."
+    if reason == "no_numbers_in_both":
+        return "Neither the ground truth nor your answer contained a clear number."
+    if reason == "no_numbers_in_ground_truth":
+        return "The ground truth did not contain a clear numeric value to compare."
+    if reason == "no_numbers_in_llm":
+        return "Your answer did not contain a clear numeric value."
+    if reason == "symbolic_exact_match":
+        return "The form of your answer matches the ground truth."
+    if reason == "symbolic_substring_match":
+        return "The form of your answer is consistent with the ground truth."
+    if reason == "symbolic_mismatch":
+        return "The form of your answer differs from the ground truth."
+    if reason == "empty_after_normalize":
+        return "Could not compare symbolic form (empty after normalization)."
+    return reason
+
+
+def _format_answer_value(num: float) -> str:
+    """Format a numeric answer for display (e.g. 8 not 8.0, 0.05 not 5e-2)."""
+    if num == int(num) and abs(num) < 1e15:
+        return str(int(num))
+    if abs(num) < 1e-4 or abs(num) >= 1e6:
+        return f"{num:.4g}"
+    return str(round(num, 6)).rstrip("0").rstrip(".")
+
+
+def _build_data_driven_reasoning(
+    verdict: str,
+    ground_truth_text: str,
+    answer_text: str,
+    trace: list[dict],
+    extras: dict,
+) -> str:
+    """
+    Build a short narrative from rule results only (no problem-type hard-coding, no LLM).
+    Uses concise numeric values for display (e.g. "8" and "10") when available, so we show
+    "ground truth is 8" / "your answer is 10" instead of raw LaTeX or long strings.
+    """
+    gt_raw = (ground_truth_text or "").strip()
+    ans_raw = (answer_text or "").strip()
+    nums_gt = extract_numbers(gt_raw)
+    nums_ans = extract_numbers(ans_raw)
+    gt_value = nums_gt[-1] if nums_gt else None
+    ans_value = nums_ans[-1] if nums_ans else None
+    # Optional unit when "feet" or "foot" appears (so we can show "8 feet" instead of "8")
+    has_feet = "feet" in gt_raw.lower() or "foot" in gt_raw.lower() or "feet" in ans_raw.lower() or "foot" in ans_raw.lower()
+    unit = " feet" if has_feet else ""
+
+    if gt_value is not None:
+        gt_display = _format_answer_value(gt_value) + unit
+    else:
+        gt_display = gt_raw[:100] + ("…" if len(gt_raw) > 100 else "")
+    if ans_value is not None:
+        ans_display = _format_answer_value(ans_value) + unit
+    else:
+        ans_display = ans_raw[:100] + ("…" if len(ans_raw) > 100 else "")
+
+    num_reason = ""
+    sym_reason = ""
+    conf_reason = ""
+    for t in trace:
+        r = t.get("rule") or t.get("inference")
+        reason = t.get("reason") or t.get("premise") or ""
+        if r == "numeric_match":
+            num_reason = _humanize_rule_reason("numeric_match", reason)
+        elif r == "symbolic_match":
+            sym_reason = _humanize_rule_reason("symbolic_match", reason)
+        elif r == "confidence":
+            conf_reason = reason if isinstance(reason, str) else ""
+
+    correct = verdict == "not_hallucinating"
+    if correct:
+        parts = [
+            f"The ground truth answer is {gt_display}.",
+            f"Your answer is {ans_display}.",
+        ]
+        if num_reason:
+            parts.append(num_reason)
+        if sym_reason:
+            parts.append(sym_reason)
+        if conf_reason:
+            parts.append(conf_reason)
+        parts.append("Therefore your answer is correct.")
+        return " ".join(parts)
+
+    # Incorrect: state values clearly so "why wrong" is obvious (your value vs correct value)
+    parts = [
+        f"The ground truth answer is {gt_display}.",
+        f"Your answer was {ans_display}.",
+    ]
+    if gt_value is not None and ans_value is not None:
+        parts.append(f"Your answer gives the value {ans_display}, but the correct value is {gt_display} — so the answer is marked wrong because they differ.")
+    if num_reason:
+        parts.append(num_reason)
+    if sym_reason:
+        parts.append(sym_reason)
+    if conf_reason:
+        parts.append(conf_reason)
+    parts.append("Therefore your answer is incorrect.")
+    abduced = extras.get("abduced_causes") or []
+    if abduced:
+        causes = []
+        for c in abduced[:3]:
+            form = c.get("form") or c.get("hypothesis") or ""
+            if isinstance(form, str) and form:
+                causes.append(form)
+        if causes:
+            parts.append("Possible reasons for the discrepancy: " + " ".join(causes))
+    return " ".join(parts)
+
+
+def _llm_cleanup_reasoning(raw_reasoning: str) -> str:
+    """
+    Use the LLM only to rewrite the reasoning in clear, natural language.
+    Does not change facts, numbers, or conclusions. Optional; requires OPENAI_API_KEY.
+    """
+    api_key = os.environ.get("OPENAI_API_KEY")
+    if not api_key or not (raw_reasoning or "").strip():
+        return raw_reasoning or ""
+    try:
+        try:
+            from openai import OpenAI
+            client = OpenAI(api_key=api_key)
+            resp = client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[
+                    {
+                        "role": "system",
+                        "content": "You are an editor. Rewrite the following explanation in clear, natural language suitable for a student. Do not add or remove any facts, numbers, or conclusions. Only improve clarity, flow, and readability. Keep it concise (one short paragraph). Output only the rewritten text, nothing else.",
+                    },
+                    {"role": "user", "content": raw_reasoning},
+                ],
+                temperature=0.2,
+            )
+            text = (resp.choices[0].message.content or "").strip()
+        except ImportError:
+            import urllib.request
+            body = json.dumps({
+                "model": "gpt-4o-mini",
+                "messages": [
+                    {"role": "system", "content": "You are an editor. Rewrite the following explanation in clear, natural language suitable for a student. Do not add or remove any facts, numbers, or conclusions. Only improve clarity, flow, and readability. Keep it concise (one short paragraph). Output only the rewritten text, nothing else."},
+                    {"role": "user", "content": raw_reasoning},
+                ],
+                "temperature": 0.2,
+            })
+            req = urllib.request.Request(
+                "https://api.openai.com/v1/chat/completions",
+                data=body.encode("utf-8"),
+                headers={"Content-Type": "application/json", "Authorization": f"Bearer {api_key}"},
+                method="POST",
+            )
+            with urllib.request.urlopen(req, timeout=25) as r:
+                out = json.loads(r.read().decode())
+            text = (out.get("choices", [{}])[0].get("message", {}).get("content") or "").strip()
+        return text or raw_reasoning
+    except Exception:
+        return raw_reasoning
+
+
+def _narrative_reasoning_for_word_problem(
+    word_problem: str,
+    verdict: str,
+    ground_truth_text: str,
+    answer_text: str,
+    trace: list[dict],
+    extras: dict,
+    use_llm_cleanup: bool = False,
+) -> str:
+    """
+    Build reasoning from rule results only (no hard-coded problem types). Optionally use LLM to clean up language.
+    """
+    raw = _build_data_driven_reasoning(verdict, ground_truth_text, answer_text, trace, extras)
+    if use_llm_cleanup:
+        return _llm_cleanup_reasoning(raw)
+    return raw
+
+
+# -------------------------
 # Word problem validation (Wolfram = ground truth, ChatGPT = LLM answer)
 # -------------------------
-def validate_word_problem(word_problem: str, expected_answer: str | None = None) -> dict[str, Any]:
+def validate_word_problem(
+    word_problem: str,
+    expected_answer: str | None = None,
+    answer_to_check: str | None = None,
+    use_llm_cleanup: bool = False,
+) -> dict[str, Any]:
     """
-    Send the same word problem to Wolfram (ground truth) and to the LLM; compare answers.
-    If expected_answer is provided, it is used as the ground truth (no Wolfram call); otherwise Wolfram is the ground truth.
-    Returns row with verdict, reasoning trace, FOPC-style facts, and explicit ground_truth / ground_truth_value.
+    Compare an answer to ground truth (Wolfram or expected_answer). Reasoning is data-driven from rule results (no hard-coded problem types).
+    - If answer_to_check is provided: validate that answer against ground truth (no LLM call for the answer). Reasoning narrative is built from trace/extras.
+    - If answer_to_check is not provided: call LLM to get an answer, then compare. Verdict and reasoning narrative are rule-based from the comparison.
+    - If expected_answer is provided: use it as ground truth (no Wolfram); otherwise Wolfram is the ground truth.
+    - If use_llm_cleanup is True: after building the reasoning from data, call LLM once to rewrite it for clarity only (no change to facts or logic).
+    Returns row with verdict, reasoning_narrative (data-driven, optionally LLM-polished), reasoning trace, and facts.
     """
     if expected_answer is not None:
         ground = {
@@ -1238,16 +1585,22 @@ def validate_word_problem(word_problem: str, expected_answer: str | None = None)
                 ],
                 "_facts": [{"predicate": "wolfram_query_failed", "args": ["question"], "value": True}],
             }
-    llm_out = call_llm(word_problem)
-    verdict, trace, explanation, extras = apply_rules_and_deduce("word_problem", ground, llm_out["answer"])
+    # Use provided answer to check (no LLM), or call LLM to get an answer. Reasoning is always rule-based (no LLM).
+    if answer_to_check is not None:
+        answer_used = answer_to_check.strip()
+        llm_out = {"answer": answer_used, "reasoning": ""}
+    else:
+        llm_out = call_llm(word_problem)
+        answer_used = llm_out["answer"] or ""
+    verdict, trace, explanation, extras = apply_rules_and_deduce("word_problem", ground, answer_used)
     gt_text = ground.get("raw_plaintext", "") or ""
     ground_value = ground.get("decimal_value")  # numeric when Wolfram gives a clear number
     facts = [
         {"predicate": "question", "args": ["word_problem"], "value": word_problem},
         {"predicate": "ground_truth", "args": [], "value": gt_text},
         {"predicate": "ground_truth_value", "args": [], "value": ground_value},
-        {"predicate": "llm_answer", "args": [], "value": llm_out["answer"]},
-        {"predicate": "llm_reasoning", "args": [], "value": (llm_out["reasoning"] or "")[:300]},
+        {"predicate": "llm_answer", "args": [], "value": answer_used},
+        {"predicate": "llm_reasoning", "args": [], "value": (llm_out.get("reasoning") or "")[:300]},
     ]
     for t in trace:
         facts.append({
@@ -1255,18 +1608,27 @@ def validate_word_problem(word_problem: str, expected_answer: str | None = None)
             "value": t.get("result"),
             "reason": t.get("reason") or t.get("premise"),
         })
+    reasoning_narrative = _narrative_reasoning_for_word_problem(
+        word_problem, verdict, gt_text, answer_used or "", trace, extras, use_llm_cleanup=use_llm_cleanup
+    )
+    # Concise numeric value from answer (so UI can show "10" instead of "7 \\text{ feet}+3 \\text{ feet}=10")
+    nums_answer = extract_numbers(answer_used or "")
+    answer_value = nums_answer[-1] if nums_answer else None
     return {
         "question_id": "word_problem",
         "question": word_problem,
         "ground_truth": gt_text[:500],
         "ground_truth_value": ground_value,
+        "answer_value": answer_value,
         "wolfram_answer": gt_text[:300],
-        "llm_answer": (llm_out["answer"] or "")[:300],
-        "llm_reasoning": (llm_out["reasoning"] or "")[:500],
+        "llm_answer": (answer_used or "")[:300],
+        "llm_reasoning": (llm_out.get("reasoning") or "")[:500],
+        "answer_was_provided": answer_to_check is not None,
         "numeric_match": trace[0]["result"] if trace else False,
         "symbolic_match": trace[1]["result"] if len(trace) > 1 else False,
         "verdict": verdict,
         "reasoning_explanation": explanation,
+        "reasoning_narrative": reasoning_narrative,
         "_reasoning_trace": trace,
         "_facts": facts,
         "_extras": extras,
@@ -1389,27 +1751,41 @@ def main():
     # Word problem: send to Wolfram + ChatGPT, compare answers
     if argv and argv[0] == "--word-problem":
         if len(argv) < 2:
-            print("Usage: python math_hallucination_validator.py --word-problem \"YOUR WORD PROBLEM\" [--expected \"ANSWER\"]")
-            print('Example: python math_hallucination_validator.py --word-problem "A train leaves at 2pm at 60 mph..."')
-            print('Example with known answer: python math_hallucination_validator.py --word-problem "What is 2+2?" --expected "4"')
+            print("Usage: python math_hallucination_validator.py --word-problem \"PROBLEM\" [--answer-to-check \"ANS\"] [--expected \"GROUND\"]")
+            print("  --answer-to-check: validate this answer vs Wolfram (no LLM call; rule-based reasoning only)")
+            print("  --expected: use as ground truth instead of Wolfram")
             return 1
         try:
             ex_idx = argv.index("--expected")
         except ValueError:
             ex_idx = -1
-        if ex_idx >= 0:
-            word_problem = " ".join(argv[1:ex_idx]).strip()
-            expected_answer = " ".join(argv[ex_idx + 1:]).strip() if ex_idx + 1 < len(argv) else ""
-        else:
-            word_problem = " ".join(argv[1:]).strip()
-            expected_answer = None
+        try:
+            ac_idx = argv.index("--answer-to-check")
+        except ValueError:
+            ac_idx = -1
+        # Word problem: from argv[1] until first flag (--expected or --answer-to-check)
+        first_flag = min(i for i in (ex_idx, ac_idx) if i >= 0) if (ex_idx >= 0 or ac_idx >= 0) else len(argv)
+        word_problem = " ".join(argv[1:first_flag]).strip()
+        # Each flag's value: from next arg until next flag or end
+        def value_after(flag_idx: int) -> str | None:
+            if flag_idx < 0 or flag_idx + 1 >= len(argv):
+                return None
+            end = len(argv)
+            for other in (ex_idx, ac_idx):
+                if other > flag_idx:
+                    end = min(end, other)
+            return " ".join(argv[flag_idx + 1:end]).strip() or None
+        expected_answer = value_after(ex_idx)
+        answer_to_check = value_after(ac_idx)
         if not word_problem:
             print("Provide a non-empty word problem in quotes.")
             return 1
         if expected_answer is not None and not expected_answer:
             expected_answer = None
-        if not os.environ.get("OPENAI_API_KEY"):
-            print("OPENAI_API_KEY is required for --word-problem (to get ChatGPT's answer). Set it in .env or export it.")
+        if answer_to_check is not None and not answer_to_check:
+            answer_to_check = None
+        if answer_to_check is None and not os.environ.get("OPENAI_API_KEY"):
+            print("OPENAI_API_KEY is required when no --answer-to-check. Set it in .env or use --answer-to-check \"YOUR ANSWER\" for rule-based only.")
             return 1
         print("Math LLM Hallucination Validator — word problem")
         print(f"Problem: {word_problem[:200]}{'...' if len(word_problem) > 200 else ''}\n")
@@ -1417,15 +1793,19 @@ def main():
             print("Using provided ground truth (--expected).")
         else:
             print("Getting ground truth from Wolfram...")
-        print("Getting answer from ChatGPT...\n")
-        row = validate_word_problem(word_problem, expected_answer=expected_answer)
+        if answer_to_check is not None:
+            print("Using provided answer to check (no LLM). Rule-based reasoning only.\n")
+        else:
+            print("Getting answer from ChatGPT...\n")
+        row = validate_word_problem(word_problem, expected_answer=expected_answer, answer_to_check=answer_to_check)
         gt_label = "Ground truth (provided)" if expected_answer is not None else "Ground truth (Wolfram Alpha)"
         gt_text = (row.get("ground_truth") or row.get("wolfram_answer") or "")[:400]
         print(f"--- {gt_label} ---")
         print(f"  Answer: {gt_text}")
         if row.get("ground_truth_value") is not None:
             print(f"  Numeric value: {row['ground_truth_value']}")
-        print("\n--- LLM answer (ChatGPT) ---")
+        answer_label = "Answer checked (no LLM)" if row.get("answer_was_provided") else "LLM answer (ChatGPT)"
+        print(f"\n--- {answer_label} ---")
         print(f"  Answer: {row.get('llm_answer', '')[:300]}")
         if row.get("llm_reasoning"):
             print(f"  Reasoning (excerpt): {row['llm_reasoning'][:200]}...")

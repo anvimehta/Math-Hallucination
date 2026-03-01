@@ -2,8 +2,8 @@
   "representation": "FOPC-style facts + rule-based deduction + abduction + aggregation + inference chain",
   "aggregation": {
     "total_questions": 5,
-    "hallucination_count": 1,
-    "hallucination_rate": 0.2,
+    "hallucination_count": 2,
+    "hallucination_rate": 0.4,
     "fopc": [
       {
         "predicate": "aggregate",
@@ -18,17 +18,17 @@
         "args": [
           "hallucination_count"
         ],
-        "value": 1,
-        "form": "hallucination_count(1)"
+        "value": 2,
+        "form": "hallucination_count(2)"
       },
       {
         "predicate": "rate_hallucinating",
         "args": [
-          1,
+          2,
           5
         ],
-        "value": 0.2,
-        "form": "rate_hallucinating(1, 5) = 20.00%"
+        "value": 0.4,
+        "form": "rate_hallucinating(2, 5) = 40.00%"
       }
     ]
   },
@@ -55,21 +55,21 @@
           "args": [
             "q1"
           ],
-          "value": "\\sqrt{1805} + 5 + 1 \\approx 42.5 + 5 + 1 = 48.5"
+          "value": "42.5 + 6 = 48.5"
         },
         {
           "predicate": "llm_reasoning",
           "args": [
             "q1"
           ],
-          "value": "Let's solve the expression step by step:\n\n1. **Calculate \\( 34 \\times 52 \\)**:\n   \\[\n   34 \\times 52 = 1768\n   \\]\n\n2. **Add 73**:\n   \\[\n   1768 + 73 = 1841\n   \\]\n\n3. **Calculate \\( 144 / 4 \\)**:\n   \\[..."
+          "value": "To solve the expression step by step, we will break it down into parts:\n\n1. **Calculate \\( 34 \\times 52 \\)**:\n   \\[\n   34 \\times 52 = 1768\n   \\]\n\n2. **Add 73 to the result**:\n   \\[\n   1768 + 73 = 1841..."
         }
       ],
       "reasoning_trace": [
         {
           "rule": "numeric_match",
           "result": false,
-          "reason": "numeric_mismatch(w=[6.0, 19.0, 5.0], l=[1805.0, 5.0, 1.0, 42.5, 5.0, 1.0, 48.5])"
+          "reason": "numeric_mismatch(w=[6.0, 19.0, 5.0], l=[42.5, 6.0, 48.5])"
         },
         {
           "rule": "symbolic_match",
@@ -120,7 +120,7 @@
               "step": 2,
               "type": "premise",
               "form": "P2: llm_answer(L)",
-              "value": "\\sqrt{1805} + 5 + 1 \\approx 42.5 + 5 + 1 = 48.5"
+              "value": "42.5 + 6 = 48.5"
             },
             {
               "step": 3,
@@ -178,7 +178,7 @@
           "step": 2,
           "type": "premise",
           "form": "P2: llm_answer(L)",
-          "value": "\\sqrt{1805} + 5 + 1 \\approx 42.5 + 5 + 1 = 48.5"
+          "value": "42.5 + 6 = 48.5"
         },
         {
           "step": 3,
@@ -230,21 +230,21 @@
           "args": [
             "q2"
           ],
-          "value": "\\int x^4 \\sin(x) \\, dx = -x^4 \\cos(x) + 4x^3 \\sin(x) + 12x^2 \\cos(x) - 24x \\sin(x) - 24 \\cos(x) + C"
+          "value": "\\int x^4 \\sin(x) \\, dx = -x^4 \\cos(x) + 4x^3 \\sin(x) + 12x^2 \\cos(x) - 8x \\sin(x) - 8 \\cos(x) + C"
         },
         {
           "predicate": "llm_reasoning",
           "args": [
             "q2"
           ],
-          "value": "To solve the integral \\( \\int x^4 \\sin(x) \\, dx \\), we will use integration by parts multiple times. The formula for integration by parts is:\n\n\\[\n\\int u \\, dv = uv - \\int v \\, du\n\\]\n\n### Step 1: First..."
+          "value": "To integrate \\( \\int x^4 \\sin(x) \\, dx \\), we will use integration by parts multiple times. The formula for integration by parts is:\n\n\\[\n\\int u \\, dv = uv - \\int v \\, du\n\\]\n\n### Step 1: Choose \\( u \\)..."
         }
       ],
       "reasoning_trace": [
         {
           "rule": "numeric_match",
-          "result": true,
-          "reason": "numeric_match(last: 24.0 ~ 24.0)"
+          "result": false,
+          "reason": "numeric_mismatch(w=[4.0, 4.0, 2.0, 6.0, 4.0, 12.0, 2.0, 24.0], l=[4.0, 4.0, 4.0, 3.0, 12.0, 2.0, 8.0, 8.0])"
         },
         {
           "rule": "symbolic_match",
@@ -253,13 +253,13 @@
         },
         {
           "rule": "confidence",
-          "result": "high",
-          "reason": "Relative error \u2248 0.00e+00 (match).",
-          "relative_error": 0.0
+          "result": "very_high",
+          "reason": "Relative error \u2248 66.67%; strong evidence of hallucination.",
+          "relative_error": 0.6666666666666666
         },
         {
           "inference": "verdict",
-          "predicate": "not_hallucinating",
+          "predicate": "hallucinating",
           "premise": "numeric_match \u2228 symbolic_match"
         },
         {
@@ -267,13 +267,18 @@
           "abduced_causes": [
             {
               "predicate": "abduced_cause",
+              "hypothesis": "numeric_error",
+              "form": "LLM may have made a numerical mistake (wrong constant, wrong operation, or rounding)."
+            },
+            {
+              "predicate": "abduced_cause",
               "hypothesis": "symbolic_error",
               "form": "LLM may have used a different (incorrect) symbolic form or expression."
             },
             {
               "predicate": "abduced_cause",
-              "hypothesis": "form_difference_only",
-              "form": "Numbers agree but form differs (e.g. equivalent expression in different form)."
+              "hypothesis": "both_numeric_and_symbolic",
+              "form": "Both numeric and symbolic mismatch; hallucination likely substantive."
             }
           ]
         },
@@ -290,13 +295,13 @@
               "step": 2,
               "type": "premise",
               "form": "P2: llm_answer(L)",
-              "value": "\\int x^4 \\sin(x) \\, dx = -x^4 \\cos(x) + 4x^3 \\sin(x) + 12x^2 \\cos(x) - 24x \\sin("
+              "value": "\\int x^4 \\sin(x) \\, dx = -x^4 \\cos(x) + 4x^3 \\sin(x) + 12x^2 \\cos(x) - 8x \\sin(x"
             },
             {
               "step": 3,
               "type": "observation",
-              "form": "P3: numeric_match(G,L) = True",
-              "value": true
+              "form": "P3: numeric_match(G,L) = False",
+              "value": false
             },
             {
               "step": 4,
@@ -313,14 +318,19 @@
             {
               "step": 6,
               "type": "conclusion",
-              "form": "C: verdict = not_hallucinating",
-              "value": "not_hallucinating"
+              "form": "C: verdict = hallucinating",
+              "value": "hallucinating"
             }
           ]
         }
       ],
-      "verdict": "not_hallucinating",
+      "verdict": "hallucinating",
       "abduced_causes": [
+        {
+          "predicate": "abduced_cause",
+          "hypothesis": "numeric_error",
+          "form": "LLM may have made a numerical mistake (wrong constant, wrong operation, or rounding)."
+        },
         {
           "predicate": "abduced_cause",
           "hypothesis": "symbolic_error",
@@ -328,8 +338,8 @@
         },
         {
           "predicate": "abduced_cause",
-          "hypothesis": "form_difference_only",
-          "form": "Numbers agree but form differs (e.g. equivalent expression in different form)."
+          "hypothesis": "both_numeric_and_symbolic",
+          "form": "Both numeric and symbolic mismatch; hallucination likely substantive."
         }
       ],
       "inference_chain": [
@@ -343,13 +353,13 @@
           "step": 2,
           "type": "premise",
           "form": "P2: llm_answer(L)",
-          "value": "\\int x^4 \\sin(x) \\, dx = -x^4 \\cos(x) + 4x^3 \\sin(x) + 12x^2 \\cos(x) - 24x \\sin("
+          "value": "\\int x^4 \\sin(x) \\, dx = -x^4 \\cos(x) + 4x^3 \\sin(x) + 12x^2 \\cos(x) - 8x \\sin(x"
         },
         {
           "step": 3,
           "type": "observation",
-          "form": "P3: numeric_match(G,L) = True",
-          "value": true
+          "form": "P3: numeric_match(G,L) = False",
+          "value": false
         },
         {
           "step": 4,
@@ -366,12 +376,12 @@
         {
           "step": 6,
           "type": "conclusion",
-          "form": "C: verdict = not_hallucinating",
-          "value": "not_hallucinating"
+          "form": "C: verdict = hallucinating",
+          "value": "hallucinating"
         }
       ],
-      "confidence": "high",
-      "relative_error": 0.0
+      "confidence": "very_high",
+      "relative_error": 0.6666666666666666
     },
     {
       "id": "q3",
@@ -402,7 +412,7 @@
           "args": [
             "q3"
           ],
-          "value": "To solve the quadratic equation \\( x^2 - 5x + 6 = 0 \\), we can factor the equation.\n\n1. **Identify the coefficients**: The equation is in the standard form \\( ax^2 + bx + c = 0 \\), where \\( a = 1 \\), ..."
+          "value": "To solve the quadratic equation \\( x^2 - 5x + 6 = 0 \\), we can factor the equation.\n\n1. **Identify the coefficients**: The equation is in the form \\( ax^2 + bx + c = 0 \\), where \\( a = 1 \\), \\( b = -5..."
         }
       ],
       "reasoning_trace": [
@@ -550,7 +560,7 @@
           "args": [
             "q4"
           ],
-          "value": "f'(x) = e^x(x^2(3 + x))"
+          "value": "f'(x) = e^x(3x^2 + x^3)"
         },
         {
           "predicate": "llm_reasoning",
@@ -610,7 +620,7 @@
               "step": 2,
               "type": "premise",
               "form": "P2: llm_answer(L)",
-              "value": "f'(x) = e^x(x^2(3 + x))"
+              "value": "f'(x) = e^x(3x^2 + x^3)"
             },
             {
               "step": 3,
@@ -663,7 +673,7 @@
           "step": 2,
           "type": "premise",
           "form": "P2: llm_answer(L)",
-          "value": "f'(x) = e^x(x^2(3 + x))"
+          "value": "f'(x) = e^x(3x^2 + x^3)"
         },
         {
           "step": 3,

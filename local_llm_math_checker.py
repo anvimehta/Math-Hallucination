@@ -262,6 +262,35 @@ def _parse_literal_constraint(question_text: str) -> tuple[int, int] | None:
     return None
 
 
+def check_constraint(question_text: str, result: CheckResult) -> tuple[bool, str]:
+    """
+    Check if the LLM's expression satisfies a "use N Ks" constraint inferred from the question.
+    Returns (ok, reason). reason is non-empty when ok is False.
+    """
+    constraint_ok = True
+    constraint_reason = ""
+    parsed = _parse_literal_constraint(question_text)
+    if parsed is not None:
+        required_count, required_literal = parsed
+        if not result.expression:
+            constraint_ok = False
+            constraint_reason = (
+                f"No expression extracted; cannot verify 'use {required_count} {required_literal}s' constraint."
+            )
+        else:
+            nums = [int(m.group()) for m in re.finditer(r"\d+", result.expression)]
+            count_required = sum(1 for n in nums if n == required_literal)
+            other_nums = [n for n in nums if n != required_literal]
+            if count_required != required_count or other_nums:
+                constraint_ok = False
+                constraint_reason = (
+                    f"'use {required_count} {required_literal}s' constraint violated: "
+                    f"found {count_required} occurrences of {required_literal} "
+                    f"and other literals {other_nums} in expression {result.expression!r}"
+                )
+    return constraint_ok, constraint_reason
+
+
 def call_llm(question: str) -> dict[str, str]:
     """
     Call an OpenAI-compatible chat model to solve the math question.

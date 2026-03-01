@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Math Hallucination Validator</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css" crossorigin="anonymous" />
+  <style>
+    :root {
+      --bg: #0d1117;
+      --surface: #161b22;
+      --border: #30363d;
+      --text: #e6edf3;
+      --text-muted: #8b949e;
+      --accent: #58a6ff;
+      --success: #3fb950;
+      --warning: #d29922;
+      --danger: #f85149;
+      --radius: 10px;
+      --input-h: 44px;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: 'DM Sans', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      display: flex;
+      flex-direction: column;
+    }
+    .chat-container {
+      flex: 1;
+      max-width: 720px;
+      width: 100%;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      padding: 24px 16px 16px;
+    }
+    .header {
+      text-align: center;
+      margin-bottom: 24px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid var(--border);
+    }
+    .header h1 {
+      font-size: 1.25rem;
+      font-weight: 600;
+      margin: 0;
+      letter-spacing: -0.02em;
+    }
+    .header p {
+      font-size: 0.875rem;
+      color: var(--text-muted);
+      margin: 6px 0 0;
+    }
+    .messages {
+      flex: 1;
+      overflow-y: auto;
+      min-height: 200px;
+    }
+    .msg {
+      margin-bottom: 20px;
+      padding: 14px 16px;
+      border-radius: var(--radius);
+      font-size: 0.9375rem;
+      line-height: 1.5;
+    }
+    .msg.user {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      margin-left: 0;
+      margin-right: 24px;
+    }
+    .msg.assistant {
+      background: rgba(88, 166, 255, 0.08);
+      border: 1px solid rgba(88, 166, 255, 0.2);
+      margin-left: 24px;
+      margin-right: 0;
+    }
+    .msg.assistant.error {
+      background: rgba(248, 81, 73, 0.08);
+      border-color: rgba(248, 81, 73, 0.3);
+    }
+    .msg .label {
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+    }
+    .msg pre, .msg code {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.8125rem;
+    }
+    .msg pre {
+      white-space: pre-wrap;
+      word-break: break-word;
+      margin: 8px 0 0;
+      padding: 10px;
+      background: rgba(0,0,0,0.25);
+      border-radius: 6px;
+    }
+    .verdict {
+      display: inline-block;
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-weight: 600;
+      font-size: 0.875rem;
+      margin-bottom: 8px;
+    }
+    .verdict.hallucinating { background: rgba(248, 81, 73, 0.25); color: #ff7b72; }
+    .verdict.not_hallucinating { background: rgba(63, 185, 80, 0.2); color: #3fb950; }
+    .mode-cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 12px;
+      margin-top: 16px;
+    }
+    .mode-card {
+      padding: 16px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      cursor: pointer;
+      transition: border-color 0.15s, background 0.15s;
+      text-align: left;
+    }
+    .mode-card:hover {
+      border-color: var(--accent);
+      background: rgba(88, 166, 255, 0.06);
+    }
+    .mode-card.selected {
+      border-color: var(--accent);
+      background: rgba(88, 166, 255, 0.1);
+    }
+    .mode-card .title { font-weight: 600; font-size: 0.9375rem; }
+    .mode-card .desc { font-size: 0.8rem; color: var(--text-muted); margin-top: 4px; }
+    .input-area {
+      padding: 16px 0 8px;
+      border-top: 1px solid var(--border);
+    }
+    .form-row {
+      margin-bottom: 12px;
+    }
+    .form-row label {
+      display: block;
+      font-size: 0.8125rem;
+      color: var(--text-muted);
+      margin-bottom: 4px;
+    }
+    .form-row input, .form-row textarea {
+      width: 100%;
+      padding: 10px 14px;
+      font-family: inherit;
+      font-size: 0.9375rem;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      resize: vertical;
+    }
+    .form-row input:focus, .form-row textarea:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 2px rgba(88, 166, 255, 0.2);
+    }
+    .form-row textarea { min-height: 80px; }
+    .form-row input::placeholder, .form-row textarea::placeholder { color: var(--text-muted); }
+    .btn {
+      padding: 10px 20px;
+      font-family: inherit;
+      font-size: 0.9375rem;
+      font-weight: 500;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: filter 0.15s, background 0.15s;
+    }
+    .btn-primary {
+      background: var(--accent);
+      color: #fff;
+    }
+    .btn-primary:hover { filter: brightness(1.1); }
+    .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; filter: none; }
+    .spinner {
+      display: inline-block;
+      width: 18px;
+      height: 18px;
+      border: 2px solid rgba(255,255,255,0.3);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      vertical-align: middle;
+      margin-right: 8px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .step-list { margin: 8px 0 0; padding-left: 1.2em; }
+    .step-list li { margin-bottom: 4px; }
+    .hidden { display: none !important; }
+    .math-wrap { display: inline-block; vertical-align: middle; }
+    .math-wrap .katex { font-size: 1.05em; }
+    .result-table { width: 100%; border-collapse: collapse; margin: 10px 0; font-size: 0.875rem; }
+    .result-table th, .result-table td { padding: 8px 10px; text-align: left; border-bottom: 1px solid var(--border); vertical-align: middle; }
+    .result-table th { color: var(--text-muted); font-weight: 500; }
+    .result-table tr.diverges-row { background: rgba(248, 81, 73, 0.08); }
+    .result-table .num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .result-table .math-wrap { margin: 0; }
+    .result-table.step-table { margin: 8px 0 16px; }
+    .result-table.step-table th { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.04em; padding: 6px 10px 8px; }
+    .result-table.step-table td { padding: 6px 10px; }
+    .result-table.step-table .col-step { width: 2.5em; text-align: right; color: var(--text-muted); }
+    .result-table.step-table .col-value { text-align: right; min-width: 5em; }
+    .section-title { font-weight: 600; margin: 14px 0 6px; font-size: 0.9375rem; }
+    .section-title:first-of-type { margin-top: 0; }
+    .diverges-summary { margin-bottom: 8px; color: var(--text-muted); font-size: 0.875rem; }
+    .narrative-reasoning { background: var(--bg-soft); border-left: 3px solid var(--accent); padding: 12px 14px; margin: 8px 0; border-radius: 0 6px 6px 0; font-size: 0.9375rem; line-height: 1.5; }
+    .reasoning-pre { white-space: pre-wrap; word-break: break-word; max-height: 200px; overflow-y: auto; font-size: 0.8rem; margin: 4px 0; padding: 8px; background: var(--bg-soft); border-radius: 4px; }
+    .error-text { color: var(--danger, #c00); }
+    .text-muted { color: var(--text-muted); font-size: 0.9em; }
+    .label-hint { font-weight: normal; color: var(--text-muted); }
+    .field-hint { display: block; font-size: 0.8rem; color: var(--text-muted); margin-top: 4px; line-height: 1.35; }
+  </style>
+</head>
+<body>
+  <div class="chat-container">
+    <header class="header">
+      <h1>Math Hallucination Validator</h1>
+      <p>Compare math answers with Wolfram Alpha; check equations and word problems.</p>
+    </header>
+    <div class="messages" id="messages"></div>
+    <div class="input-area">
+      <div id="mode-cards" class="mode-cards">
+        <div class="mode-card" data-mode="word_problem">
+          <span class="title">Word problem</span>
+          <span class="desc">Paste a math word problem. Compare to Wolfram, or give a correct numeric target to check the LLM locally (no Wolfram).</span>
+        </div>
+        <div class="mode-card" data-mode="equation">
+          <span class="title">Equation</span>
+          <span class="desc">Give a target number. Provide an expression to verify, or leave it blank and we’ll ask ChatGPT for an equation that equals the target.</span>
+        </div>
+      </div>
+      <div id="form-word_problem" class="form-panel hidden">
+        <div class="form-row">
+          <label>Word problem or math question</label>
+          <textarea id="input-word_problem" placeholder="e.g. A train leaves at 2pm at 60 mph... or: Use four 10s and basic operations to make 6."></textarea>
+        </div>
+        <div class="form-row">
+          <label>Correct answer <span class="label-hint">(optional)</span></label>
+          <input type="text" id="input-correct_answer" placeholder="e.g. 8" />
+          <span class="field-hint">If you know the right answer, enter it. We use it instead of Wolfram. If you leave “Your answer” blank, we’ll ask the LLM and check if its math equals this number.</span>
+        </div>
+        <div class="form-row">
+          <label>Your answer <span class="label-hint">(optional)</span></label>
+          <input type="text" id="input-your_answer" placeholder="e.g. 10 or 6 pm" />
+          <span class="field-hint">An answer you want checked. We compare it to Wolfram (or to “Correct answer” if you set that). Leave blank to use the LLM’s answer.</span>
+        </div>
+        <div class="form-row">
+          <label><input type="checkbox" id="input-use_llm_cleanup" /> Polish reasoning with LLM (language only)</label>
+        </div>
+        <button type="button" class="btn btn-primary" id="btn-submit-word_problem">Run</button>
+      </div>
+      <div id="form-equation" class="form-panel hidden">
+        <div class="form-row">
+          <label>Target number (the value the equation should equal)</label>
+          <input type="text" id="input-target" placeholder="e.g. 67" />
+        </div>
+        <div class="form-row">
+          <label>Equation or expression (optional — leave blank to ask ChatGPT for an equation)</label>
+          <input type="text" id="input-expression" placeholder='e.g. sqrt((34*52+73)-144/4) + ln(e^5) + cos(0)^2' />
+        </div>
+        <button type="button" class="btn btn-primary" id="btn-submit-equation">Run</button>
+      </div>
+    </div>
+  </div>
+  <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js" crossorigin="anonymous"></script>
+  <script>
+    const API = '/api/run';
+
+    // Convert Python-style math to LaTeX for pretty rendering
+    function exprToLatex(expr) {
+      if (!expr || typeof expr !== 'string') return '';
+      let s = expr.trim();
+      // Constants: pi -> π
+      s = s.replace(/\bpi\b/gi, '\\pi');
+      // Functions: \ln, \log, \sqrt, \sin, \cos, \tan, \cot, \sec, \csc, \exp
+      s = s.replace(/\bln\s*\(/g, '\\ln(');
+      s = s.replace(/\blog\s*\(/g, '\\log(');
+      s = s.replace(/\bexp\s*\(/g, '\\exp(');
+      s = s.replace(/\bsqrt\s*\(/g, '\\sqrt{');
+      s = s.replace(/\bsin\s*\(/g, '\\sin(');
+      s = s.replace(/\bcos\s*\(/g, '\\cos(');
+      s = s.replace(/\btan\s*\(/g, '\\tan(');
+      s = s.replace(/\bcot\s*\(/g, '\\cot(');
+      s = s.replace(/\bsec\s*\(/g, '\\sec(');
+      s = s.replace(/\bcsc\s*\(/g, '\\csc(');
+      // Close \sqrt{ with } at matching ). \sqrt{(non-)}+) and replace the last ) with }. Actually simpler: sqrt(x) -> \sqrt{x}. So after \sqrt{ we need to change the matching ) to }. So: for every \sqrt{ find the matching paren and replace that ) with }. Hard without a loop. Simpler: \sqrt{(\d+)} -> \sqrt{$1}, \sqrt{([^}]+)\) -> \sqrt{$1}. So after \sqrt{ we have something until ). So s.replace(/\\sqrt\{([^}]*)\)/g, '\\sqrt{$1}') - but that would consume one ). So \sqrt{(34*52+73)}: we have \sqrt{ then (34*52+73). So we need to match \sqrt{( and then balance parens. Easiest: keep sqrt( as \sqrt( so we get \sqrt(x). In LaTeX \sqrt(x) is wrong - we need \sqrt{x}. So we need to change the ( that follows \sqrt to { and the matching ) to }. I'll do a simple approach: \sqrt{([^()]*)} for no nested parens, and for nested do a small loop. Actually in LaTeX \sqrt{x} is the form. So "sqrt(x)" we replace with "\sqrt{x}". So we need to capture the argument. For "sqrt(anything)" we need "\sqrt{anything}" where anything can have parens. So: replace sqrt( with a placeholder, then find matching ), replace that with }, then replace placeholder with \sqrt{. So: s = s.replace(/sqrt\s*\(/g, '\\sqrt{'); then we need to close the first \sqrt{ with }. So find the matching closing paren for the first \sqrt{. Algorithm: when we see \sqrt{, we need to add a } when we see the matching ). So we could do: split by \sqrt{, then for each part after the first, find the matching ) and replace it with }. Let me do a simpler regex that works for common cases: \sqrt{([^()}]+)} - that only works for one level. For "sqrt((34*52+73)-144/4)" we have nested. So: use a loop. let depth = 0; for each char, if \sqrt{ then start collecting until depth goes 0. Actually simpler: replace "sqrt(" with "\sqrt{" and then the next ")" that balances - we need to replace the matching ")" with "}". So s = s.replace(/sqrt\s*\(/g, '\\sqrt{'); then from the end, find the first } that could close \sqrt - no, that's wrong. Simpler approach: don't try to fix sqrt's closing. In KaTeX \sqrt{x} works. So we need to turn sqrt(expr) into \sqrt{expr}. So we need to find the content "expr" where ( and ) are balanced. So: s.replace(/\\sqrt\{/g, '\\sqrt{') is no-op. After we have \sqrt{ we need to replace the next balanced-paren content's closing ) with }. So: match \sqrt{( then (?:[^()]*|\((?:[^()]*|\([^()]*\))*\))* ) - too complex. I'll do: for \sqrt{, scan forward, count ( and ), when count hits 0 replace that ) with }. So in JS: s = s.replace(/sqrt\s*\(/g, '\\sqrt{'); let i = s.indexOf('\\sqrt{'); while (i !== -1) { let j = i + 6; let depth = 1; while (j < s.length && depth > 0) { if (s[j] === '{') depth++; else if (s[j] === '}') depth--; else if (s[j] === '(') depth++; else if (s[j] === ')') { depth--; if (depth === 0) { s = s.slice(0, j) + '}' + s.slice(j + 1); break; } } j++; } i = s.indexOf('\\sqrt{', i + 1); } But wait we're replacing the closing ) with }. So the content inside might have (. So we're counting ( and ) - but we already replaced sqrt( with \sqrt{, so the opening ( is gone. So after \sqrt{ we have the rest of the expression. So we need to find where the original sqrt(...) closed. So we have \sqrt{ and then "34*52+73)-144/4)" for example - no, we have \sqrt{(34*52+73)-144/4)} so after \sqrt{ we have (34*52+73)-144/4). So we need to find the matching ) for the ( right after \sqrt{. So we need to replace the first ( with nothing (it's already consumed by \sqrt{), so the content is (34*52+73)-144/4). So we need to change the last ) to }. So find balanced ( ) and replace that closing ) with }. Let me do a simpler implementation: only wrap single-token or simple expressions in \sqrt{}, and for complex ones leave as \sqrt( so KaTeX might still render something. Or: don't do \sqrt{ in the regex; do \sqrt( and in LaTeX \sqrt(x) is interpreted as \sqrt (x) which is wrong. So we must output \sqrt{...}. I'll do a loop: after each \sqrt{, find the matching closing paren (count ( and ) ) and replace that ) with }.
+      // Fix \sqrt{...}: find matching ) and replace with }; then move to next \sqrt{
+      let idx = s.indexOf('\\sqrt{');
+      while (idx !== -1) {
+        let start = idx + 6;
+        let depth = 1;
+        let j = start;
+        while (j < s.length) {
+          if (s[j] === '(') depth++;
+          else if (s[j] === ')') { depth--; if (depth === 0) { s = s.slice(0, j) + '}' + s.slice(j + 1); break; } }
+          else if (s[j] === '{') depth++;
+          else if (s[j] === '}') depth--;
+          j++;
+        }
+        idx = s.indexOf('\\sqrt{', idx + 1);
+      }
+      // Exponent: ** and ^
+      s = s.replace(/\*\*/g, '^');
+      // Wrap simple exponents in braces: a^2 -> a^{2}, e^5 -> e^{5}, x^12 -> x^{12}
+      s = s.replace(/([a-zA-Z0-9.])\^(\d+)/g, '$1^{$2}');
+      s = s.replace(/([a-zA-Z0-9.])\^([a-zA-Z])/g, '$1^{$2}');
+      return s;
+    }
+
+    function renderMathInContainer(container) {
+      if (!window.katex) return;
+      container.querySelectorAll('.math-expr').forEach(span => {
+        const raw = span.getAttribute('data-expr');
+        if (!raw) return;
+        try {
+          const latex = exprToLatex(raw);
+          const wrap = document.createElement('span');
+          wrap.className = 'math-wrap';
+          katex.render(latex, wrap, { throwOnError: false, displayMode: false });
+          span.replaceWith(wrap);
+        } catch (e) {
+          span.textContent = raw;
+        }
+      });
+    }
+    const messagesEl = document.getElementById('messages');
+    const modeCards = document.getElementById('mode-cards');
+    let selectedMode = null;
+
+    function addMessage(role, content, isError = false) {
+      const div = document.createElement('div');
+      div.className = `msg ${role}` + (isError ? ' error' : '');
+      const label = role === 'user' ? 'You' : 'Validator';
+      div.innerHTML = `<span class="label">${label}</span><div class="content"></div>`;
+      const contentEl = div.querySelector('.content');
+      if (typeof content === 'string') contentEl.textContent = content;
+      else contentEl.appendChild(content);
+      messagesEl.appendChild(div);
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+      return contentEl;
+    }
+
+    function renderResult(container, data) {
+      const mode = data.mode;
+      const r = data.result;
+      if (data.error) {
+        container.innerHTML = `<p>Error: ${escapeHtml(data.error)}</p>`;
+        return;
+      }
+      if (mode === 'word_problem') {
+        if (r.is_local_check) {
+          let html = '';
+          if (r.question) html += `<p><strong>Question:</strong> ${escapeHtml(r.question)}</p>`;
+          if (r.llm_answer) html += `<p><strong>LLM short answer line:</strong> ${escapeHtml(r.llm_answer)}</p>`;
+          if (r.llm_reasoning) {
+            html += '<p class="section-title">--- Full LLM reasoning ---</p>';
+            html += `<pre class="reasoning-pre">${escapeHtml(r.llm_reasoning)}</pre>`;
+          }
+          html += '<p class="section-title">--- Local numeric check ---</p>';
+          html += `<p><strong>Target:</strong> ${formatNum(r.target)}</p>`;
+          if (r.expression != null) html += `<p><strong>Extracted expression:</strong> ${escapeHtml(JSON.stringify(r.expression))}</p>`;
+          html += `<p><strong>Evaluated value:</strong> ${formatNum(r.value)}</p>`;
+          if (r.difference != null) html += `<p><strong>Difference (value - target):</strong> ${formatNum(r.difference)}</p>`;
+          if (r.error) html += `<p class="error-text"><strong>Error:</strong> ${escapeHtml(r.error)}</p>`;
+          if (r.constraint_ok === false && r.constraint_reason) html += `<p class="error-text"><strong>Constraint check failed:</strong> ${escapeHtml(r.constraint_reason)}</p>`;
+          html += '<p class="section-title">--- Verdict ---</p>';
+          html += `<p><span class="verdict ${r.verdict === 'hallucinating' ? 'hallucinating' : 'not_hallucinating'}">${r.verdict}</span>`;
+          if (r.verdict_note) html += ` <span class="text-muted">(${escapeHtml(r.verdict_note)})</span>`;
+          html += '</p>';
+          container.innerHTML = html;
+        } else {
+          let html = `<span class="verdict ${r.verdict === 'hallucinating' ? 'hallucinating' : 'not_hallucinating'}">${r.verdict}</span><br>`;
+          if (r.reasoning_narrative) html += `<p class="section-title">Reasoning</p><div class="narrative-reasoning">${escapeHtml(r.reasoning_narrative)}</div>`;
+          const gtDisplay = r.ground_truth_value != null ? formatNum(r.ground_truth_value) : escapeHtml((r.ground_truth || '').slice(0, 300));
+          html += `<p><strong>Ground truth:</strong> ${gtDisplay}</p>`;
+          const answerLabel = r.answer_was_provided ? 'Answer checked (no LLM)' : 'LLM answer';
+          const ansDisplay = r.answer_value != null ? formatNum(r.answer_value) : escapeHtml((r.llm_answer || '').slice(0, 300));
+          html += `<p><strong>${answerLabel}:</strong> ${ansDisplay}</p>`;
+          html += `<p>Numeric match: ${r.numeric_match}; Symbolic match: ${r.symbolic_match}</p>`;
+          if (r.relative_error != null) html += `<p>Relative error: ${formatNum(r.relative_error)}</p>`;
+          if (r.confidence) html += `<p>Evidence: ${escapeHtml(r.confidence)}</p>`;
+          if (r.abduced_causes && r.abduced_causes.length) html += `<p>Abduced causes: ${escapeHtml(r.abduced_causes.join(', '))}</p>`;
+          html += `<p><strong>Rule-based check:</strong></p><p>${escapeHtml(r.reasoning_explanation || '')}</p>`;
+          if (r.reasoning_trace && r.reasoning_trace.length) {
+            html += '<p class="section-title">Reasoning steps</p><table class="result-table"><thead><tr><th>Step</th><th>Result</th><th>Reason</th></tr></thead><tbody>';
+            r.reasoning_trace.forEach(function(tr) {
+              const res = tr.result === true ? 'Yes' : (tr.result === false ? 'No' : (tr.result != null ? escapeHtml(String(tr.result)) : '—'));
+              html += `<tr><td>${escapeHtml(tr.step || '')}</td><td>${res}</td><td>${escapeHtml((tr.reason || '').slice(0, 120))}${(tr.reason && tr.reason.length > 120) ? '…' : ''}</td></tr>`;
+            });
+            html += '</tbody></table>';
+          }
+          container.innerHTML = html;
+        }
+        return;
+      }
+      if (mode === 'equation') {
+        let html = `<span class="verdict ${r.verdict === 'hallucinating' ? 'hallucinating' : 'not_hallucinating'}">${r.verdict}</span><br>`;
+        const eqLabel = r.asked_equation ? 'Equation from ChatGPT' : 'Expression';
+        if (r.llm_equation) html += `<p><strong>${eqLabel}:</strong> <span class="math-expr" data-expr="${escapeAttr(r.llm_equation)}"></span></p>`;
+        html += `<p>Wolfram result: ${escapeHtml((r.wolfram_answer || '').slice(0, 200))}</p>`;
+        html += `<p>Actual value: <strong>${formatNum(r.actual_value)}</strong> | Claimed target: ${formatNum(r.claimed_target)}</p>`;
+        if (r.step_by_step && r.step_by_step.length) {
+          html += '<p class="section-title">Step-by-step</p>';
+          html += '<table class="result-table step-table"><thead><tr><th class="col-step">#</th><th>Expression</th><th class="col-value">Value</th></tr></thead><tbody>';
+          r.step_by_step.slice(0, 20).forEach(s => {
+            html += `<tr><td class="col-step num">${s.step_index}</td><td><span class="math-expr" data-expr="${escapeAttr(s.subexpr)}"></span></td><td class="col-value num">${formatNum(s.value)}</td></tr>`;
+          });
+          html += '</tbody></table>';
+        }
+        if (r.hallucination_location && r.hallucination_location.length) {
+          html += '<p class="section-title">Where it diverges</p>';
+          html += `<p class="diverges-summary">Claimed target ${formatNum(r.claimed_target)}, actual result ${formatNum(r.actual_value)}, gap = ${formatNum((r.actual_value != null && r.claimed_target != null) ? r.actual_value - r.claimed_target : null)}. Parts below: actual value vs value needed so the full expression would equal the target.</p>`;
+          html += '<table class="result-table"><thead><tr><th>Step</th><th>Part</th><th>Actual</th><th>Needed for target</th><th>Discrepancy</th></tr></thead><tbody>';
+          [...r.hallucination_location].sort((a, b) => (a.step_index || 0) - (b.step_index || 0)).forEach(loc => {
+            const rowClass = loc.in_gap_combo ? ' class="diverges-row"' : '';
+            html += `<tr${rowClass}><td class="num">${loc.step_index}</td><td><span class="math-expr" data-expr="${escapeAttr(loc.subexpr)}"></span>${loc.in_gap_combo ? ' <span style="color:var(--danger);font-size:0.8em;">← accounts for error</span>' : ''}</td><td class="num">${formatNum(loc.actual_value)}</td><td class="num">${formatNum(loc.required_value_to_reach_target)}</td><td class="num">${formatNum(loc.discrepancy)}</td></tr>`;
+          });
+          html += '</tbody></table>';
+        } else if (r.where_diverges_explanation) {
+          html += `<p class="section-title">Where it diverges</p><p>${escapeHtml(r.where_diverges_explanation)}</p>`;
+        }
+        if (r.fopc_step_and_incorrect && r.fopc_step_and_incorrect.length) {
+          html += '<p class="section-title">Logic-style facts (FOPC)</p><ul class="step-list">';
+          r.fopc_step_and_incorrect.forEach(f => {
+            const form = (f && f.form) != null ? f.form : f;
+            html += `<li><code>${escapeHtml(String(form))}</code></li>`;
+          });
+          html += '</ul>';
+        }
+        if (r.reasoning_explanation) html += `<p class="section-title">Reasoning</p><p class="narrative-reasoning">${escapeHtml(r.reasoning_explanation)}</p>`;
+        container.innerHTML = html;
+        renderMathInContainer(container);
+        return;
+      }
+    }
+
+    function escapeHtml(s) {
+      const div = document.createElement('div');
+      div.textContent = s;
+      return div.innerHTML;
+    }
+    function escapeAttr(s) {
+      if (s == null) return '';
+      return escapeHtml(String(s)).replace(/"/g, '&quot;');
+    }
+    function formatNum(n) {
+      if (n == null || n === '') return '—';
+      const x = Number(n);
+      if (Number.isNaN(x)) return escapeHtml(String(n));
+      if (Number.isInteger(x)) return String(x);
+      const s = x.toPrecision(6);
+      return s.length > 10 ? Number(x).toExponential(4) : s;
+    }
+
+    function getUserSummary(mode, body) {
+      if (mode === 'word_problem') return (body.word_problem || '').slice(0, 80) + ((body.word_problem || '').length > 80 ? '…' : '');
+      if (mode === 'equation') return body.expression ? `Target ${body.target}: ${(body.expression || '').slice(0, 50)}…` : `Ask equation for target ${body.target}`;
+      return 'Run';
+    }
+
+    function getBody(mode) {
+      if (mode === 'word_problem') return { mode: 'word_problem', word_problem: document.getElementById('input-word_problem').value.trim(), correct_answer: document.getElementById('input-correct_answer').value.trim() || undefined, your_answer: document.getElementById('input-your_answer').value.trim() || undefined, use_llm_cleanup: document.getElementById('input-use_llm_cleanup').checked };
+      if (mode === 'equation') return { mode: 'equation', target: document.getElementById('input-target').value.trim(), expression: document.getElementById('input-expression').value.trim() || undefined };
+      return {};
+    }
+
+    function setPanel(mode) {
+      selectedMode = mode;
+      document.querySelectorAll('.mode-card').forEach(c => c.classList.toggle('selected', c.dataset.mode === mode));
+      document.querySelectorAll('.form-panel').forEach(p => p.classList.add('hidden'));
+      const panel = document.getElementById('form-' + mode);
+      if (panel) panel.classList.remove('hidden');
+    }
+
+    async function submit(mode) {
+      const body = getBody(mode);
+      if (mode === 'word_problem' && !body.word_problem) return;
+      if (mode === 'equation' && !body.target) return;
+
+      addMessage('user', getUserSummary(mode, body));
+      const contentEl = addMessage('assistant', 'Running…');
+      const btn = document.querySelector(`#btn-submit-${mode}`);
+      if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>Running…'; }
+
+      try {
+        const res = await fetch(API, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+        const text = await res.text();
+        let data;
+        try {
+          data = text ? JSON.parse(text) : {};
+        } catch (parseErr) {
+          contentEl.innerHTML = '';
+          contentEl.textContent = 'Server returned invalid response (status ' + res.status + '). Check the server terminal for errors.';
+          contentEl.closest('.msg').classList.add('error');
+          if (btn) { btn.disabled = false; btn.textContent = 'Run'; }
+          return;
+        }
+        contentEl.innerHTML = '';
+        if (!data.ok) {
+          renderResult(contentEl, { error: data.error || ('Request failed with status ' + res.status) });
+          contentEl.closest('.msg').classList.add('error');
+        } else {
+          renderResult(contentEl, data);
+        }
+      } catch (e) {
+        contentEl.textContent = 'Request failed: ' + e.message;
+        contentEl.closest('.msg').classList.add('error');
+      }
+      if (btn) { btn.disabled = false; btn.textContent = 'Run'; }
+    }
+
+    modeCards.querySelectorAll('.mode-card').forEach(card => {
+      card.addEventListener('click', () => setPanel(card.dataset.mode));
+    });
+    document.getElementById('btn-submit-word_problem').addEventListener('click', () => submit('word_problem'));
+    document.getElementById('btn-submit-equation').addEventListener('click', () => submit('equation'));
+
+    addMessage('assistant', 'Choose a mode above, then fill in the fields and run. No command-line flags needed.');
+  </script>
+</body>
+</html>
