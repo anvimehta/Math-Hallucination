@@ -29,6 +29,9 @@ _load_dotenv()
 # Reuse existing Wolfram integration (no extra dependency)
 from wolfram_alpha import wolfram_query, extract_wolfram_steps
 
+# Real FOPC engine (unification + resolution)
+from fopc import fopc_deduce_verdict, fopc_deduce_equation_verdict, fopc_abduce_causes
+
 # -------------------------
 # Configuration
 # -------------------------
@@ -767,14 +770,25 @@ def apply_rules_and_deduce(question_id: str, ground: dict, llm_answer: str) -> t
     trace.append({"rule": "confidence", "result": confidence, "reason": conf_expl, "relative_error": rel_err})
     language_parts.append(f"Evidence strength: {conf_expl}")
 
-    # Deduction: not_hallucinating iff (numeric_match OR symbolic_match)
-    not_hallucinating = num_ok or sym_ok
-    verdict = "not_hallucinating" if not_hallucinating else "hallucinating"
-    trace.append({"inference": "verdict", "predicate": verdict, "premise": "numeric_match ∨ symbolic_match"})
+    # Deduction via real FOPC: unification + resolution over Horn clauses
+    verdict, fopc_proof = fopc_deduce_verdict(num_ok, sym_ok)
+    trace.append({
+        "inference": "verdict",
+        "predicate": verdict,
+        "premise": "numeric_match ∨ symbolic_match",
+        "fopc_engine": "real",
+        "fopc_proof": fopc_proof,
+    })
     language_parts.append(f"Verdict: {verdict} (by rule: correct if numeric or symbolic match).")
 
-    # Abduction: possible causes when hallucinating
-    abduced = abduce_causes(num_ok, sym_ok, gt_text, llm_answer)
+    # Abduction via real FOPC: derive possible causes when hallucinating
+    has_numbers = bool(extract_numbers(gt_text)) and bool(extract_numbers(llm_answer))
+    abduced, _ = fopc_abduce_causes(
+        hallucinating=(verdict == "hallucinating"),
+        numeric_ok=num_ok,
+        symbolic_ok=sym_ok,
+        has_numbers_in_both=has_numbers,
+    )
     trace.append({"inference": "abduction", "abduced_causes": abduced})
     if abduced:
         language_parts.append("Possible causes: " + "; ".join(c.get("form", "") for c in abduced[:2]))
@@ -788,6 +802,7 @@ def apply_rules_and_deduce(question_id: str, ground: dict, llm_answer: str) -> t
         "confidence": confidence,
         "abduced_causes": abduced,
         "inference_chain": chain,
+        "fopc_proof": fopc_proof,
     }
     return verdict, trace, " ".join(language_parts), extras
 
@@ -961,7 +976,7 @@ def validate_equation_claim(
     if actual is None:
         actual = extract_numbers(gt_text)[0] if extract_numbers(gt_text) else None
     equals_target = actual is not None and abs(actual - target) <= tolerance
-    verdict = "not_hallucinating" if equals_target else "hallucinating"
+    verdict, fopc_eq_proof = fopc_deduce_equation_verdict(equals_target)
     reason = (
         f"equation_value({actual}) equals claimed_target({target})"
         if equals_target
@@ -969,7 +984,13 @@ def validate_equation_claim(
     )
     trace = [
         {"rule": "equals_target", "result": equals_target, "reason": reason},
-        {"inference": "verdict", "predicate": verdict, "premise": "equals_target ↔ (|actual - target| ≤ tolerance)"},
+        {
+            "inference": "verdict",
+            "predicate": verdict,
+            "premise": "equals_target ↔ (|actual - target| ≤ tolerance)",
+            "fopc_engine": "real",
+            "fopc_proof": fopc_eq_proof,
+        },
     ]
     facts = [
         {"predicate": "claimed_target", "args": [], "value": target},
@@ -1002,6 +1023,7 @@ def validate_equation_claim(
         "where_diverges_explanation": location_explanation,
         "_reasoning_trace": trace,
         "_facts": facts,
+        "_fopc_proof": fopc_eq_proof,
     }
 
 
@@ -1165,7 +1187,7 @@ def write_table_and_log(rows: list[dict]) -> None:
     print(f"Table: {table_path}")
 
     log = {
-        "representation": "FOPC-style facts + rule-based deduction + abduction + aggregation + inference chain",
+        "representation": "Real FOPC (unification + resolution) + FOPC-style facts + abduction + aggregation + inference chain",
         "aggregation": aggregation,
         "questions": [
             {
@@ -1175,6 +1197,7 @@ def write_table_and_log(rows: list[dict]) -> None:
                 "verdict": r["verdict"],
                 "abduced_causes": r.get("_extras", {}).get("abduced_causes", []),
                 "inference_chain": r.get("_extras", {}).get("inference_chain", []),
+                "fopc_proof": r.get("_extras", {}).get("fopc_proof", []),
                 "confidence": r.get("_extras", {}).get("confidence"),
                 "relative_error": r.get("_extras", {}).get("relative_error"),
             }
@@ -1264,6 +1287,7 @@ def main():
                     "reasoning_trace": row.get("_reasoning_trace", []),
                     "abduced_causes": extras.get("abduced_causes", []),
                     "inference_chain": extras.get("inference_chain", []),
+                    "fopc_proof": extras.get("fopc_proof", []),
                     "confidence": extras.get("confidence"),
                     "relative_error": extras.get("relative_error"),
                 },
@@ -1340,6 +1364,7 @@ def main():
                     "fopc": row.get("fopc_step_and_incorrect", []),
                     "facts": row.get("_facts", []),
                     "reasoning_trace": row.get("_reasoning_trace", []),
+                    "fopc_proof": row.get("_fopc_proof", []),
                 },
                 f,
                 indent=2,
@@ -1407,6 +1432,7 @@ def main():
                     "fopc": row.get("fopc_step_and_incorrect", []),
                     "facts": row.get("_facts", []),
                     "reasoning_trace": row.get("_reasoning_trace", []),
+                    "fopc_proof": row.get("_fopc_proof", []),
                 },
                 f,
                 indent=2,
@@ -1439,7 +1465,7 @@ def main():
         conf = ex.get("confidence", "")
         print(f"  {r['question_id']}: {r['verdict']}  (numeric={r['numeric_match']}, symbolic={r['symbolic_match']}, confidence={conf})")
     print(f"\n--- Aggregation ---  total={n}, hallucinating={k}, rate={k/n:.0%}" if n else "")
-    print("\nReasoning: FOPC + rule-based deduction + abduction + inference chain + aggregation. Log:", REASONING_LOG)
+    print("\nReasoning: Real FOPC (unification+resolution) + abduction + inference chain + aggregation. Log:", REASONING_LOG)
     return 0
 
 
