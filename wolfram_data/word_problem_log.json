@@ -1,56 +1,56 @@
 {
-  "question": "A train leaves at 2pm at 60 mph. Another at 3pm at 80 mph. When does the second catch the first?",
-  "ground_truth": "",
-  "ground_truth_value": null,
-  "wolfram_answer": "",
-  "llm_answer": "3 \\text{ PM} + 3 \\text{ hours} = 6 \\text{ PM}",
-  "llm_reasoning": "To find out when the second train catches the first, we can follow these steps:\n\n1. **Determine the head start of the first train**: \n   The first train leaves at 2 PM and the second train leaves at 3 PM, giving the first train a 1-hour head start. \n   In that hour, the first train travels:\n   \\[\n   \\text{Distance} = \\text{Speed} \\times \\text{Time} = 60 \\text{ mph} \\times 1 \\text{ hour} = 60 \\text{ miles}\n   \\]\n\n2. **Set up the equation for when the second train catches up**:\n   Let \\( t \\) be t",
+  "question": "A snail climbs 3 feet up a wall each day but slips back 2 feet each night. How many days does it take to climb a 10-foot wall?",
+  "ground_truth": "8",
+  "ground_truth_value": 8.0,
+  "wolfram_answer": "8",
+  "llm_answer": "9 \\text{ feet} + 3 \\text{ feet} = 12 \\text{ feet}",
+  "llm_reasoning": "To solve the problem, we can break down the snail's progress day by day.\n\n1. **Daily Progress**: Each day, the snail climbs 3 feet but slips back 2 feet at night. Therefore, the net progress each day is:\n   \\[\n   3 \\text{ feet (up)} - 2 \\text{ feet (down)} = 1 \\text{ foot per day}\n   \\]\n\n2. **Climbing Days**: However, on the last day, the snail will not slip back after reaching the top. We need to consider how many days it takes to reach the point where it can climb out without slipping back.\n\n3",
   "verdict": "hallucinating",
   "numeric_match": false,
   "symbolic_match": false,
-  "reasoning_explanation": "Numeric comparison: no_numbers_in_ground_truth. Symbolic comparison: empty_after_normalize. Evidence strength: Cannot compute relative error (missing numbers). Verdict: hallucinating (by rule: correct if numeric or symbolic match). Possible causes: LLM may have used a different (incorrect) symbolic form or expression.; Both numeric and symbolic mismatch; hallucination likely substantive.",
+  "reasoning_explanation": "Numeric comparison: numeric_mismatch(w=[8.0], l=[9.0, 3.0, 12.0]). Symbolic comparison: symbolic_mismatch. Evidence strength: Relative error \u2248 50.00%; strong evidence of hallucination. Verdict: hallucinating (by rule: correct if numeric or symbolic match). Possible causes: LLM may have made a numerical mistake (wrong constant, wrong operation, or rounding).; LLM may have used a different (incorrect) symbolic form or expression.",
   "facts": [
     {
       "predicate": "question",
       "args": [
         "word_problem"
       ],
-      "value": "A train leaves at 2pm at 60 mph. Another at 3pm at 80 mph. When does the second catch the first?"
+      "value": "A snail climbs 3 feet up a wall each day but slips back 2 feet each night. How many days does it take to climb a 10-foot wall?"
     },
     {
       "predicate": "ground_truth",
       "args": [],
-      "value": ""
+      "value": "8"
     },
     {
       "predicate": "ground_truth_value",
       "args": [],
-      "value": null
+      "value": 8.0
     },
     {
       "predicate": "llm_answer",
       "args": [],
-      "value": "3 \\text{ PM} + 3 \\text{ hours} = 6 \\text{ PM}"
+      "value": "9 \\text{ feet} + 3 \\text{ feet} = 12 \\text{ feet}"
     },
     {
       "predicate": "llm_reasoning",
       "args": [],
-      "value": "To find out when the second train catches the first, we can follow these steps:\n\n1. **Determine the head start of the first train**: \n   The first train leaves at 2 PM and the second train leaves at 3 PM, giving the first train a 1-hour head start. \n   In that hour, the first train travels:\n   \\[\n  "
+      "value": "To solve the problem, we can break down the snail's progress day by day.\n\n1. **Daily Progress**: Each day, the snail climbs 3 feet but slips back 2 feet at night. Therefore, the net progress each day is:\n   \\[\n   3 \\text{ feet (up)} - 2 \\text{ feet (down)} = 1 \\text{ foot per day}\n   \\]\n\n2. **Climbi"
     },
     {
       "predicate": "numeric_match",
       "value": false,
-      "reason": "no_numbers_in_ground_truth"
+      "reason": "numeric_mismatch(w=[8.0], l=[9.0, 3.0, 12.0])"
     },
     {
       "predicate": "symbolic_match",
       "value": false,
-      "reason": "empty_after_normalize"
+      "reason": "symbolic_mismatch"
     },
     {
       "predicate": "confidence",
-      "value": "unknown",
-      "reason": "Cannot compute relative error (missing numbers)."
+      "value": "very_high",
+      "reason": "Relative error \u2248 50.00%; strong evidence of hallucination."
     },
     {
       "predicate": "verdict",
@@ -72,18 +72,18 @@
     {
       "rule": "numeric_match",
       "result": false,
-      "reason": "no_numbers_in_ground_truth"
+      "reason": "numeric_mismatch(w=[8.0], l=[9.0, 3.0, 12.0])"
     },
     {
       "rule": "symbolic_match",
       "result": false,
-      "reason": "empty_after_normalize"
+      "reason": "symbolic_mismatch"
     },
     {
       "rule": "confidence",
-      "result": "unknown",
-      "reason": "Cannot compute relative error (missing numbers).",
-      "relative_error": null
+      "result": "very_high",
+      "reason": "Relative error \u2248 50.00%; strong evidence of hallucination.",
+      "relative_error": 0.5
     },
     {
       "inference": "verdict",
@@ -93,6 +93,11 @@
     {
       "inference": "abduction",
       "abduced_causes": [
+        {
+          "predicate": "abduced_cause",
+          "hypothesis": "numeric_error",
+          "form": "LLM may have made a numerical mistake (wrong constant, wrong operation, or rounding)."
+        },
         {
           "predicate": "abduced_cause",
           "hypothesis": "symbolic_error",
@@ -112,13 +117,13 @@
           "step": 1,
           "type": "premise",
           "form": "P1: ground_truth(G)",
-          "value": ""
+          "value": "8"
         },
         {
           "step": 2,
           "type": "premise",
           "form": "P2: llm_answer(L)",
-          "value": "3 \\text{ PM} + 3 \\text{ hours} = 6 \\text{ PM}"
+          "value": "9 \\text{ feet} + 3 \\text{ feet} = 12 \\text{ feet}"
         },
         {
           "step": 3,
@@ -150,6 +155,11 @@
   "abduced_causes": [
     {
       "predicate": "abduced_cause",
+      "hypothesis": "numeric_error",
+      "form": "LLM may have made a numerical mistake (wrong constant, wrong operation, or rounding)."
+    },
+    {
+      "predicate": "abduced_cause",
       "hypothesis": "symbolic_error",
       "form": "LLM may have used a different (incorrect) symbolic form or expression."
     },
@@ -164,13 +174,13 @@
       "step": 1,
       "type": "premise",
       "form": "P1: ground_truth(G)",
-      "value": ""
+      "value": "8"
     },
     {
       "step": 2,
       "type": "premise",
       "form": "P2: llm_answer(L)",
-      "value": "3 \\text{ PM} + 3 \\text{ hours} = 6 \\text{ PM}"
+      "value": "9 \\text{ feet} + 3 \\text{ feet} = 12 \\text{ feet}"
     },
     {
       "step": 3,
@@ -197,6 +207,6 @@
       "value": "hallucinating"
     }
   ],
-  "confidence": "unknown",
-  "relative_error": null
+  "confidence": "very_high",
+  "relative_error": 0.5
 }
