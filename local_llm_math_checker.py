@@ -213,6 +213,50 @@ def check_llm_answer(answer_text: str, target: float, tolerance: float = NUMERIC
     )
 
 
+def _parse_literal_constraint(question_text: str) -> tuple[int, int] | None:
+    """
+    Try to infer a constraint of the form "use N Ks" from the question text,
+    e.g. "use four 10s", "use 3 7s", "with three 5s", etc.
+
+    Returns (required_count, required_literal_value) or None if no pattern found.
+    """
+    q = question_text.lower()
+    word_to_int = {
+        "one": 1,
+        "two": 2,
+        "three": 3,
+        "four": 4,
+        "five": 5,
+        "six": 6,
+        "seven": 7,
+        "eight": 8,
+        "nine": 9,
+        "ten": 10,
+    }
+    # Pattern 1: "use four 10s", "with 3 7s", etc.
+    m = re.search(r"(one|two|three|four|five|six|seven|eight|nine|ten|\d+)\s+(\d+)\s*s\b", q)
+    if m:
+        count_word, literal_str = m.groups()
+        if count_word.isdigit():
+            count = int(count_word)
+        else:
+            count = word_to_int.get(count_word, 0)
+        if count > 0:
+            literal_val = int(literal_str)
+            return count, literal_val
+    # Pattern 2: "use four tens" (implicitly 10s)
+    m = re.search(r"(one|two|three|four|five|six|seven|eight|nine|ten|\d+)\s+tens?\b", q)
+    if m:
+        count_word = m.group(1)
+        if count_word.isdigit():
+            count = int(count_word)
+        else:
+            count = word_to_int.get(count_word, 0)
+        if count > 0:
+            return count, 10
+    return None
+
+
 def call_llm(question: str) -> dict[str, str]:
     """
     Call an OpenAI-compatible chat model to solve the math question.
@@ -341,22 +385,26 @@ def _cli(argv: list[str]) -> int:
         print("Verdict: hallucinating (cannot verify expression against target).")
         return 0
 
-    # Optional constraint: "use four 10s" style problems
+    # Optional constraint: "use N Ks" style problems (e.g. "use four 10s", "use 3 sevens")
     constraint_ok = True
     constraint_reason = ""
-    q_lower = question_text.lower()
-    if "four 10s" in q_lower or "4 10s" in q_lower or "four tens" in q_lower:
+    parsed = _parse_literal_constraint(question_text)
+    if parsed is not None:
+        required_count, required_literal = parsed
         if not result.expression:
             constraint_ok = False
-            constraint_reason = "No expression extracted; cannot verify 'four 10s' constraint."
+            constraint_reason = (
+                f"No expression extracted; cannot verify 'use {required_count} {required_literal}s' constraint."
+            )
         else:
             nums = [int(m.group()) for m in re.finditer(r"\d+", result.expression)]
-            count_10 = sum(1 for n in nums if n == 10)
-            other_nums = [n for n in nums if n != 10]
-            if count_10 != 4 or other_nums:
+            count_required = sum(1 for n in nums if n == required_literal)
+            other_nums = [n for n in nums if n != required_literal]
+            if count_required != required_count or other_nums:
                 constraint_ok = False
                 constraint_reason = (
-                    f"'four 10s' constraint violated: found {count_10} occurrences of 10 "
+                    f"'use {required_count} {required_literal}s' constraint violated: "
+                    f"found {count_required} occurrences of {required_literal} "
                     f"and other literals {other_nums} in expression {result.expression!r}"
                 )
 
