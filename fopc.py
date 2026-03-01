@@ -389,3 +389,346 @@ def fopc_abduce_causes(
             })
             all_proofs.extend(trace)
     return (causes, all_proofs)
+
+
+# -------------------------
+# Evidence strength (confidence) from relative error
+# -------------------------
+def fopc_deduce_evidence_strength(
+    rel_err: float | None,
+    match: bool,
+    tolerance: float = 1e-6,
+) -> tuple[str, str, list[dict[str, Any]]]:
+    """
+    FOPC deduction: derive evidence_strength (confidence) from rel_err facts.
+    Rules:
+      evidence_strength(high)     ← rel_err_below(tolerance)           # match
+      evidence_strength(medium)   ← rel_err_below(0.01) ∧ ¬match
+      evidence_strength(high)     ← rel_err_below(0.5) ∧ rel_err_above(0.01)
+      evidence_strength(very_high)← rel_err_above(0.5)
+      evidence_strength(unknown)  ← no_rel_err
+    Oracle asserts rel_err_below/above from numeric rel_err; FOPC derives level.
+    Returns (confidence_level, explanation, proof_trace).
+    """
+    kb = KnowledgeBase()
+
+    if rel_err is None:
+        kb.add_fact(Atom("no_rel_err", (Const("q"),)))
+        kb.add_clause(Clause(
+            Literal(Atom("evidence_strength", (Const("unknown"),)), False),
+            [Literal(Atom("no_rel_err", (Var("q"),)), False)],
+        ))
+        goal = Literal(Atom("evidence_strength", (Const("unknown"),)), False)
+        success, trace = kb.prove(goal)
+        return ("unknown", "Cannot compute relative error (missing numbers).", trace)
+
+    # Oracle: assert rel_err facts from thresholds
+    if rel_err <= tolerance:
+        kb.add_fact(Atom("rel_err_below", (Const("tolerance"),)))
+        goal = Literal(Atom("evidence_strength", (Const("high"),)), False)
+        success, trace = kb.prove(goal)
+        return ("high", f"Relative error ≈ {rel_err:.2e} (match).", trace)
+
+    kb.add_fact(Atom("not_match", (Const("q"),)))
+    if rel_err < 0.01:
+        kb.add_fact(Atom("rel_err_below", (Const("0.01"),)))
+        kb.add_fact(Atom("rel_err_above", (Const("tolerance"),)))
+    elif rel_err < 0.5:
+        kb.add_fact(Atom("rel_err_below", (Const("0.5"),)))
+        kb.add_fact(Atom("rel_err_above", (Const("0.01"),)))
+    else:
+        kb.add_fact(Atom("rel_err_above", (Const("0.5"),)))
+
+    # Rules
+    kb.add_clause(Clause(
+        Literal(Atom("evidence_strength", (Const("high"),)), False),
+        [Literal(Atom("rel_err_below", (Const("tolerance"),)), False)],
+    ))
+    kb.add_clause(Clause(
+        Literal(Atom("evidence_strength", (Const("medium"),)), False),
+        [
+            Literal(Atom("rel_err_below", (Const("0.01"),)), False),
+            Literal(Atom("not_match", (Var("q"),)), False),
+        ],
+    ))
+    kb.add_clause(Clause(
+        Literal(Atom("evidence_strength", (Const("high"),)), False),
+        [
+            Literal(Atom("rel_err_below", (Const("0.5"),)), False),
+            Literal(Atom("rel_err_above", (Const("0.01"),)), False),
+        ],
+    ))
+    kb.add_clause(Clause(
+        Literal(Atom("evidence_strength", (Const("very_high"),)), False),
+        [Literal(Atom("rel_err_above", (Const("0.5"),)), False)],
+    ))
+
+    for level in ["very_high", "high", "medium"]:
+        goal = Literal(Atom("evidence_strength", (Const(level),)), False)
+        success, trace = kb.prove(goal)
+        if success:
+            if level == "very_high":
+                expl = f"Relative error ≈ {rel_err:.2%}; strong evidence of hallucination."
+            elif level == "medium":
+                expl = f"Relative error ≈ {rel_err:.2%}; small numeric deviation."
+            else:
+                expl = f"Relative error ≈ {rel_err:.2%}; moderate evidence of hallucination." if rel_err > tolerance else f"Relative error ≈ {rel_err:.2e} (match)."
+            return (level, expl, trace)
+
+    return ("unknown", f"Relative error ≈ {rel_err:.2%}", [])
+
+
+# -------------------------
+# Inference chain from FOPC proof trace
+# -------------------------
+def fopc_build_inference_chain(
+    gt_text: str,
+    llm_answer: str,
+    num_ok: bool,
+    sym_ok: bool,
+    verdict: str,
+    fopc_proof: list[dict[str, Any]],
+) -> list[dict]:
+    """
+    Build inference chain from FOPC proof trace instead of fixed template.
+    Maps fact_match/rule_match steps to premise → observation → rule → conclusion.
+    """
+    chain: list[dict] = []
+    step_num = 1
+
+    # Premises
+    chain.append({"step": step_num, "type": "premise", "form": "P1: ground_truth(G)", "value": gt_text[:80]})
+    step_num += 1
+    chain.append({"step": step_num, "type": "premise", "form": "P2: llm_answer(L)", "value": llm_answer[:80]})
+    step_num += 1
+
+    # Observations (from oracle / comparison)
+    chain.append({"step": step_num, "type": "observation", "form": f"P3: numeric_match(G,L) = {num_ok}", "value": num_ok})
+    step_num += 1
+    chain.append({"step": step_num, "type": "observation", "form": f"P4: symbolic_match(G,L) = {sym_ok}", "value": sym_ok})
+    step_num += 1
+
+    # Rule applications from FOPC proof trace
+    for i, proof_step in enumerate(fopc_proof):
+        if proof_step.get("step") == "rule_match":
+            chain.append({
+                "step": step_num,
+                "type": "rule",
+                "form": f"R{i+1}: {proof_step.get('clause', '')}",
+                "value": None,
+                "fopc_proof_step": proof_step,
+            })
+            step_num += 1
+        elif proof_step.get("step") == "fact_match":
+            chain.append({
+                "step": step_num,
+                "type": "fact_match",
+                "form": f"F{i+1}: {proof_step.get('goal', '')} ← {proof_step.get('fact', '')}",
+                "value": proof_step.get("subst", {}),
+                "fopc_proof_step": proof_step,
+            })
+            step_num += 1
+
+    # Conclusion
+    chain.append({"step": step_num, "type": "conclusion", "form": f"C: verdict = {verdict}", "value": verdict})
+    return chain
+
+
+# -------------------------
+# Aggregation rules
+# -------------------------
+def fopc_aggregate_result(
+    n: int,
+    k: int,
+) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    """
+    FOPC deduction: aggregate_result(N, K, R) ← all_processed(N) ∧ count_hallucinating(K) ∧ rate(K, N, R).
+    Oracle computes R = K/N; FOPC derives aggregate_result via resolution.
+    Returns (aggregation_dict with fopc_aggregation, proof_trace).
+    """
+    rate = (k / n) if n else 0
+    kb = KnowledgeBase()
+
+    kb.add_fact(Atom("all_processed", (Const(str(n)),)))
+    kb.add_fact(Atom("count_hallucinating", (Const(str(k)),)))
+    kb.add_fact(Atom("rate", (Const(str(k)), Const(str(n)), Const(str(rate)))))
+
+    kb.add_clause(Clause(
+        Literal(Atom("aggregate_result", (Var("N"), Var("K"), Var("R"))), False),
+        [
+            Literal(Atom("all_processed", (Var("N"),)), False),
+            Literal(Atom("count_hallucinating", (Var("K"),)), False),
+            Literal(Atom("rate", (Var("K"), Var("N"), Var("R"))), False),
+        ],
+    ))
+
+    goal = Literal(Atom("aggregate_result", (Const(str(n)), Const(str(k)), Const(str(rate)))), False)
+    success, trace = kb.prove(goal)
+
+    return (
+        {
+            "total_questions": n,
+            "hallucination_count": k,
+            "hallucination_rate": rate,
+            "fopc_aggregation": [
+                {"predicate": "all_processed", "args": [n], "value": n, "form": f"all_processed({n})"},
+                {"predicate": "count_hallucinating", "args": [k], "value": k, "form": f"count_hallucinating({k})"},
+                {"predicate": "rate", "args": [k, n], "value": rate, "form": f"rate({k}, {n}) = {rate:.2%}"},
+                {"predicate": "aggregate_result", "args": [n, k, rate], "value": rate, "form": f"aggregate_result({n}, {k}, {rate:.2%})", "fopc_proof": trace},
+            ],
+        },
+        trace,
+    )
+
+
+# -------------------------
+# Equation: where diverges / first wrong step
+# -------------------------
+def fopc_deduce_diverges_at(
+    hallucination_location: list[dict],
+) -> tuple[list[str], list[dict[str, Any]]]:
+    """
+    FOPC deduction: diverges_at(Subexpr) ← step has significant_discrepancy ∧ first_in_eval_order.
+    Oracle provides hallucination_location (step_index, subexpr, ...); FOPC derives diverges_at(Subexpr).
+    Returns (list of subexprs where divergence occurs, proof_trace).
+    """
+    if not hallucination_location:
+        return ([], [])
+
+    kb = KnowledgeBase()
+
+    # Find first in eval order (min step_index) that accounts for total error, or largest discrepancy
+    first_wrong = [loc for loc in hallucination_location if loc.get("first_wrong") or loc.get("in_gap_combo")]
+    if not first_wrong:
+        # Fallback: largest abs_discrepancy, then earliest step_index
+        sorted_loc = sorted(
+            hallucination_location,
+            key=lambda x: (-(x.get("abs_discrepancy") or 0), x.get("step_index", 9999)),
+        )
+        first_wrong = sorted_loc[:1] if sorted_loc else []
+
+    for loc in hallucination_location:
+        subexpr = loc.get("subexpr", "")
+        step_idx = loc.get("step_index", 9999)
+        if subexpr and loc.get("abs_discrepancy") is not None:
+            kb.add_fact(Atom("step_with_discrepancy", (Const(subexpr), Const(str(step_idx)))))
+        if loc in first_wrong or (first_wrong and loc.get("subexpr") == first_wrong[0].get("subexpr")):
+            kb.add_fact(Atom("first_in_eval_order", (Const(subexpr),)))
+
+    kb.add_clause(Clause(
+        Literal(Atom("diverges_at", (Var("S"),)), False),
+        [
+            Literal(Atom("step_with_discrepancy", (Var("S"), Var("I"))), False),
+            Literal(Atom("first_in_eval_order", (Var("S"),)), False),
+        ],
+    ))
+
+    diverges: list[str] = []
+    all_traces: list[dict] = []
+    for loc in first_wrong:
+        subexpr = loc.get("subexpr", "")
+        if subexpr:
+            goal = Literal(Atom("diverges_at", (Const(subexpr),)), False)
+            success, trace = kb.prove(goal)
+            if success:
+                diverges.append(subexpr)
+                all_traces.extend(trace)
+
+    return (diverges, all_traces)
+
+
+# -------------------------
+# Meta-rules: prioritization
+# -------------------------
+def fopc_deduce_priority(
+    hallucinating: bool,
+    evidence_strength: str,
+    abduced_causes: list[dict],
+) -> tuple[list[str], list[dict[str, Any]]]:
+    """
+    FOPC deduction: high_priority_hallucination ← hallucinating ∧ evidence_strength(very_high)
+                    needs_human_review ← hallucinating ∧ abduced_cause(both_numeric_and_symbolic)
+    Returns (list of priority flags, proof_trace).
+    """
+    kb = KnowledgeBase()
+
+    if hallucinating:
+        kb.add_fact(Atom("hallucinating", (Const("q"),)))
+    if evidence_strength == "very_high":
+        kb.add_fact(Atom("evidence_strength", (Const("very_high"),)))
+    has_both = any(c.get("hypothesis") == "both_numeric_and_symbolic" for c in abduced_causes)
+    if has_both:
+        kb.add_fact(Atom("abduced_cause", (Const("both_numeric_and_symbolic"),)))
+
+    kb.add_clause(Clause(
+        Literal(Atom("high_priority_hallucination", (Var("q"),)), False),
+        [
+            Literal(Atom("hallucinating", (Var("q"),)), False),
+            Literal(Atom("evidence_strength", (Const("very_high"),)), False),
+        ],
+    ))
+    kb.add_clause(Clause(
+        Literal(Atom("needs_human_review", (Var("q"),)), False),
+        [
+            Literal(Atom("hallucinating", (Var("q"),)), False),
+            Literal(Atom("abduced_cause", (Const("both_numeric_and_symbolic"),)), False),
+        ],
+    ))
+
+    flags: list[str] = []
+    all_traces: list[dict] = []
+    for pred in ["high_priority_hallucination", "needs_human_review"]:
+        goal = Literal(Atom(pred, (Const("q"),)), False)
+        success, trace = kb.prove(goal)
+        if success:
+            flags.append(pred)
+            all_traces.extend(trace)
+
+    return (flags, all_traces)
+
+
+# -------------------------
+# Error verdict
+# -------------------------
+def fopc_deduce_error_verdict(wolfram_failed: bool) -> tuple[str, list[dict[str, Any]]]:
+    """
+    FOPC deduction: verdict(error) ← wolfram_query_failed(Question)
+    """
+    kb = KnowledgeBase()
+    if wolfram_failed:
+        kb.add_fact(Atom("wolfram_query_failed", (Const("question"),)))
+
+    kb.add_clause(Clause(
+        Literal(Atom("verdict", (Const("error"),)), False),
+        [Literal(Atom("wolfram_query_failed", (Var("Q"),)), False)],
+    ))
+
+    goal = Literal(Atom("verdict", (Const("error"),)), False)
+    success, trace = kb.prove(goal)
+    return ("error" if success else "unknown", trace)
+
+
+# -------------------------
+# Category-based rules
+# -------------------------
+def fopc_expect_symbolic(category: str) -> tuple[bool, list[dict[str, Any]]]:
+    """
+    FOPC deduction: expect_symbolic_answer(Q) ← category(Q, calculus)
+    Categories that typically expect symbolic answers: calculus, algebra.
+    """
+    kb = KnowledgeBase()
+    if category:
+        kb.add_fact(Atom("category", (Const("q"), Const(category))))
+
+    kb.add_clause(Clause(
+        Literal(Atom("expect_symbolic_answer", (Var("q"),)), False),
+        [Literal(Atom("category", (Var("q"), Const("calculus"))), False)],
+    ))
+    kb.add_clause(Clause(
+        Literal(Atom("expect_symbolic_answer", (Var("q"),)), False),
+        [Literal(Atom("category", (Var("q"), Const("algebra"))), False)],
+    ))
+
+    goal = Literal(Atom("expect_symbolic_answer", (Const("q"),)), False)
+    success, trace = kb.prove(goal)
+    return (success, trace)
