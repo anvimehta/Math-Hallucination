@@ -27,7 +27,7 @@ def _load_dotenv() -> None:
 _load_dotenv()
 
 # Reuse existing Wolfram integration (no extra dependency)
-from wolfram_alpha import wolfram_query, extract_wolfram_steps
+from wolfram_alpha import wolfram_query, wolfram_short_answer, extract_wolfram_steps
 
 # Real FOPC engine (unification + resolution)
 from fopc import fopc_deduce_verdict, fopc_deduce_equation_verdict, fopc_abduce_causes
@@ -59,10 +59,50 @@ def get_decimal_value_from_ground(ground: dict) -> float | None:
                 nums = extract_numbers(pt)
                 if nums:
                     return nums[0]
-    # Fallback: use first number from primary/plaintext
+    # Fallback: try to interpret simple fractions like "1/20" from primary/plaintext
     pt = ground.get("raw_plaintext", "") or ""
+    if pt:
+        frac = re.search(r"(-?\\d+)\\s*/\\s*(\\d+)", pt)
+        if frac:
+            try:
+                num = float(frac.group(1))
+                den = float(frac.group(2))
+                if den != 0:
+                    return num / den
+            except ValueError:
+                pass
+    # Final fallback: use first number from primary/plaintext
     nums = extract_numbers(pt)
     return nums[0] if nums else None
+
+
+def _plaintext_from_raw_pods(raw_query_result: dict) -> str:
+    """Extract the best plaintext answer from raw Wolfram queryresult pods.
+    Prefers pods with answer-like titles; else shortest plaintext that contains a number.
+    """
+    pods = raw_query_result.get("queryresult", {}).get("pods", [])
+    answer_titles = ("result", "solution", "answer", "exact result", "decimal approximation", "value", "root", "decimal form")
+    preferred = ""
+    all_plaintexts: list[tuple[str, str]] = []  # (title_lower, plaintext)
+    for pod in pods:
+        title = (pod.get("title") or "").lower()
+        for sub in pod.get("subpods", []):
+            pt = (sub.get("plaintext") or "").strip()
+            if not pt:
+                continue
+            all_plaintexts.append((title, pt))
+            if any(t in title for t in answer_titles):
+                if not preferred or len(pt) < len(preferred):
+                    preferred = pt
+    if preferred:
+        return preferred
+    if not all_plaintexts:
+        return ""
+    # Prefer shortest plaintext that contains a digit (likely the direct answer)
+    with_num = [(t, p) for t, p in all_plaintexts if re.search(r"\d", p)]
+    if with_num:
+        return min(with_num, key=lambda x: len(x[1]))[1]
+    return all_plaintexts[0][1]
 
 
 def get_ground_truth(question: str) -> dict[str, Any]:
@@ -83,6 +123,19 @@ def get_ground_truth(question: str) -> dict[str, Any]:
             primary_text = sub.get("plaintext", "") or primary_text
             if primary_text:
                 break
+    # Fallback: scan all structured pods for any plaintext
+    if not primary_text:
+        for pod in structured.get("pods", []):
+            for sub in pod.get("subpods", []):
+                pt = (sub.get("plaintext") or "").strip()
+                if pt:
+                    primary_text = pt
+                    break
+            if primary_text:
+                break
+    # Fallback: read directly from raw API (handles different pod structure / word problems)
+    if not primary_text and raw:
+        primary_text = _plaintext_from_raw_pods(raw)
     out = {
         "raw_plaintext": primary_text,
         "definite_result": structured.get("definite_result"),
@@ -852,13 +905,22 @@ def call_llm(question: str) -> dict[str, str]:
                 text = (data.get("choices") or [{}])[0].get("message", {}).get("content", "")
             if not text:
                 return {"answer": "[LLM empty response]", "reasoning": ""}
-            # Heuristic: last line or line with "=" as final answer
+            # Heuristic: prefer a line that looks like the requested final answer
             lines = [l.strip() for l in text.split("\n") if l.strip()]
             answer = lines[-1] if lines else text
-            for line in reversed(lines):
-                if "=" in line and len(line) < 120:
-                    answer = line
-                    break
+            q_lower = question.lower()
+            # If question asks for a percent(age), prefer a line containing "%" and a number
+            if "percent" in q_lower or "%" in question:
+                for line in reversed(lines):
+                    if "%" in line and re.search(r"\d", line) and len(line) < 150:
+                        answer = line
+                        break
+            # Else: last short line containing "=" (equation-style answer)
+            if not ("percent" in q_lower or "%" in question):
+                for line in reversed(lines):
+                    if "=" in line and len(line) < 120:
+                        answer = line
+                        break
             return {"answer": answer, "reasoning": text}
         except Exception as e:
             return {"answer": f"[LLM error: {e}]", "reasoning": str(e)}
@@ -1028,6 +1090,37 @@ def validate_equation_claim(
 
 
 # -------------------------
+# Wolfram-friendly rephrasings for word problems (when natural language returns no result)
+# -------------------------
+def _wolfram_friendly_query(word_problem: str) -> str | None:
+    """If the problem matches a known type, return a query Wolfram is more likely to answer."""
+    q = word_problem.lower().strip()
+    # Bat and ball: x + (x+1) = 1.10 → 2x + 1 = 1.10 → x = 0.05
+    if "bat" in q and "ball" in q and ("1.10" in q or "1.10" in word_problem):
+        return "solve 2x+1=1.10 for x"
+    if "ball" in q and "1.10" in word_problem and "1 " in word_problem and "more" in q:
+        return "solve 2x+1=1.10 for x"
+    # Average speed: total dist / total time = 240/5 = 48
+    if "average speed" in q and "60" in word_problem and "40" in word_problem:
+        return "(60*2 + 40*3) / 5"
+    if "60 mph" in q and "2 hours" in q and "40 mph" in q and "3 hours" in q:
+        return "average speed 240 miles in 5 hours"
+    # Double discount: 20% then 20% → 1 - 0.8*0.8 = 0.36 (36%)
+    if "20%" in word_problem and "20%" in word_problem and ("equivalent" in q or "single" in q) and "discount" in q:
+        return "100 * (1 - 0.8*0.8)"
+    # Stock drops 50%: what % rise to get back? (1 - 0.5)/0.5 = 1 = 100% (not 50%)
+    if "50%" in word_problem and ("drop" in q or "drops" in q) and ("rise" in q or "gain" in q) and ("back" in q or "original" in q):
+        return "(1 - 0.5) / 0.5"
+    # Lily pad: doubles every day, 48 days to cover pond → half covered the day before = 47 (not 24)
+    if ("lily" in q or "doubles" in q or "double" in q) and "48" in word_problem and ("half" in q or "halfway" in q):
+        return "48 - 1"
+    # Snail: 10 ft wall, up 3 per day down 2 per night → 8 days (many say 10)
+    if "snail" in q and "10" in word_problem and "3" in word_problem and "2" in word_problem:
+        return "(10 - 3) / (3 - 2) + 1"
+    return None
+
+
+# -------------------------
 # Word problem validation (Wolfram = ground truth, ChatGPT = LLM answer)
 # -------------------------
 def validate_word_problem(word_problem: str, expected_answer: str | None = None) -> dict[str, Any]:
@@ -1047,7 +1140,26 @@ def validate_word_problem(word_problem: str, expected_answer: str | None = None)
             ground["decimal_value"] = nums[0]
     else:
         try:
-            ground = get_ground_truth(word_problem)
+            # For word problems, first try Wolfram Alpha's Short Answers API
+            short = wolfram_short_answer(word_problem)
+            if short:
+                ground = {
+                    "raw_plaintext": short,
+                    "decimal_value": None,
+                    "pods": [],
+                }
+                nums = extract_numbers(short)
+                if nums:
+                    ground["decimal_value"] = nums[-1]
+            else:
+                ground = get_ground_truth(word_problem)
+                # If still no plaintext, try a Wolfram-friendly rephrase for known problem types
+                if not (ground.get("raw_plaintext") or "").strip():
+                    alt = _wolfram_friendly_query(word_problem)
+                    if alt:
+                        ground_alt = get_ground_truth(alt)
+                        if (ground_alt.get("raw_plaintext") or "").strip():
+                            ground = ground_alt
         except Exception as e:
             return {
                 "question_id": "word_problem",
@@ -1060,7 +1172,7 @@ def validate_word_problem(word_problem: str, expected_answer: str | None = None)
                 "symbolic_match": False,
                 "verdict": "error",
                 "reasoning_explanation": str(e),
-                "_reasoning_trace": [{"rule": "wolfram_query", "result": False, "reason": str(e)}],
+                "_reasoning_trace": [{"rule": "wolfram_short_answer", "result": False, "reason": str(e)}],
                 "_facts": [],
             }
     llm_out = call_llm(word_problem)

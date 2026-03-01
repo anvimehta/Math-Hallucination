@@ -7,8 +7,12 @@ import sys
 # -------------------------
 # Configuration
 # -------------------------
-APP_ID = "9J7EAHLQ5U"
+# Separate App IDs so you can use different credentials for full results vs. short answers.
+APP_ID_FULL = "9J7EAHLQ5U"   # Full JSON / step-by-step API
+APP_ID_SHORT = "EXGQ773QKE"  # Short Answers API (can be different)
+
 API_URL = "http://api.wolframalpha.com/v2/query"
+SHORT_API_URL = "https://api.wolframalpha.com/v1/result"
 OUTPUT_DIR = "wolfram_data"  # folder to store JSON files
 IMAGES_SUBDIR = "images"  # subfolder for downloaded images
 
@@ -24,14 +28,14 @@ def _safe_folder_name(query):
 
 
 # -------------------------
-# Function: Query Wolfram Alpha
+# Function: Query Wolfram Alpha (full JSON)
 # -------------------------
 def wolfram_query(query, include_step_by_step=True):
     params = {
-        "appid": APP_ID,
+        "appid": APP_ID_FULL,
         "input": query,
         "output": "JSON",
-        "format": "plaintext,image"
+        "format": "plaintext,image",
     }
 
     # Add step-by-step if requested
@@ -42,13 +46,42 @@ def wolfram_query(query, include_step_by_step=True):
 
     if response.status_code == 401:
         raise Exception(
-            "HTTP 401: Invalid or missing Wolfram Alpha App ID. "
-            "Get a free App ID at https://developer.wolframalpha.com/ and set APP_ID in this file."
+            "HTTP 401: Invalid or missing Wolfram Alpha App ID (full JSON). "
+            "Get a free App ID at https://developer.wolframalpha.com/ and set APP_ID_FULL in this file."
         )
     if response.status_code != 200:
         raise Exception(f"HTTP Error: {response.status_code}")
 
     return response.json()
+
+
+# -------------------------
+# Function: Short answer API (plain text)
+# -------------------------
+def wolfram_short_answer(query: str) -> str:
+    """
+    Call Wolfram Alpha's Short Answers API and return the plain-text result.
+    See: https://products.wolframalpha.com/api/documentation/#short-answers-api
+    """
+    params = {
+        "appid": APP_ID_SHORT,
+        "i": query,
+    }
+    response = requests.get(SHORT_API_URL, params=params, timeout=15)
+
+    if response.status_code == 401:
+        raise Exception(
+            "HTTP 401: Invalid or missing Wolfram Alpha App ID (short answer). "
+            "Get a free App ID at https://developer.wolframalpha.com/ and set APP_ID_SHORT in this file."
+        )
+    # 501 is used by the short answers API when it cannot interpret the query.
+    # In that case, return an empty string so callers can fall back to full JSON.
+    if response.status_code == 501:
+        return ""
+    if response.status_code != 200:
+        raise Exception(f"HTTP Error from Wolfram Short Answer API: {response.status_code}")
+
+    return (response.text or "").strip()
 
 
 # -------------------------
