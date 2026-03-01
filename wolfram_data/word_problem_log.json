@@ -1,56 +1,56 @@
 {
-  "question": "A snail climbs 3 feet up a wall each day but slips back 2 feet each night. How many days does it take to climb a 10-foot wall?",
-  "ground_truth": "8",
-  "ground_truth_value": 8.0,
-  "wolfram_answer": "8",
-  "llm_answer": "9 \\text{ feet} + 3 \\text{ feet} = 12 \\text{ feet}",
-  "llm_reasoning": "To solve the problem, we can break down the snail's progress day by day.\n\n1. **Daily Progress**: Each day, the snail climbs 3 feet but slips back 2 feet at night. Therefore, the net progress each day is:\n   \\[\n   3 \\text{ feet (up)} - 2 \\text{ feet (down)} = 1 \\text{ foot per day}\n   \\]\n\n2. **Climbing Days**: However, on the last day, the snail will not slip back after reaching the top. We need to consider how many days it takes to reach the point where it can climb out without slipping back.\n\n3",
+  "question": "Use four 10s and basic order of operations to get me an answer of 6.",
+  "ground_truth": "",
+  "ground_truth_value": null,
+  "wolfram_answer": "",
+  "llm_answer": "1. Use \\(10 - (10 \\div 10) - 10 + 10 = 6\\).",
+  "llm_reasoning": "To achieve the answer of 6 using four 10s and basic order of operations, we can use the following steps:\n\n1. Start with four 10s: 10, 10, 10, 10.\n2. Use division and subtraction to manipulate these numbers.\n3. First, divide two of the 10s: \\(10 \\div 10 = 1\\).\n4. Now we have two 10s left and the result from the division: \\(10, 10, 1\\).\n5. Next, subtract the result from one of the 10s: \\(10 - 1 = 9\\).\n6. Now we have: \\(9\\) and \\(10\\).\n7. Finally, divide the remaining 10 by the 9: \\(10 \\div 9\\) is ",
   "verdict": "hallucinating",
   "numeric_match": false,
   "symbolic_match": false,
-  "reasoning_explanation": "Numeric comparison: numeric_mismatch(w=[8.0], l=[9.0, 3.0, 12.0]). Symbolic comparison: symbolic_mismatch. Evidence strength: Relative error \u2248 50.00%; strong evidence of hallucination. Verdict: hallucinating (by rule: correct if numeric or symbolic match). Possible causes: LLM may have made a numerical mistake (wrong constant, wrong operation, or rounding).; LLM may have used a different (incorrect) symbolic form or expression.",
+  "reasoning_explanation": "Numeric comparison: no_numbers_in_ground_truth. Symbolic comparison: empty_after_normalize. Evidence strength: Cannot compute relative error (missing numbers). Verdict: hallucinating (by rule: correct if numeric or symbolic match). Possible causes: LLM may have used a different (incorrect) symbolic form or expression.; Both numeric and symbolic mismatch; hallucination likely substantive.",
   "facts": [
     {
       "predicate": "question",
       "args": [
         "word_problem"
       ],
-      "value": "A snail climbs 3 feet up a wall each day but slips back 2 feet each night. How many days does it take to climb a 10-foot wall?"
+      "value": "Use four 10s and basic order of operations to get me an answer of 6."
     },
     {
       "predicate": "ground_truth",
       "args": [],
-      "value": "8"
+      "value": ""
     },
     {
       "predicate": "ground_truth_value",
       "args": [],
-      "value": 8.0
+      "value": null
     },
     {
       "predicate": "llm_answer",
       "args": [],
-      "value": "9 \\text{ feet} + 3 \\text{ feet} = 12 \\text{ feet}"
+      "value": "1. Use \\(10 - (10 \\div 10) - 10 + 10 = 6\\)."
     },
     {
       "predicate": "llm_reasoning",
       "args": [],
-      "value": "To solve the problem, we can break down the snail's progress day by day.\n\n1. **Daily Progress**: Each day, the snail climbs 3 feet but slips back 2 feet at night. Therefore, the net progress each day is:\n   \\[\n   3 \\text{ feet (up)} - 2 \\text{ feet (down)} = 1 \\text{ foot per day}\n   \\]\n\n2. **Climbi"
+      "value": "To achieve the answer of 6 using four 10s and basic order of operations, we can use the following steps:\n\n1. Start with four 10s: 10, 10, 10, 10.\n2. Use division and subtraction to manipulate these numbers.\n3. First, divide two of the 10s: \\(10 \\div 10 = 1\\).\n4. Now we have two 10s left and the resu"
     },
     {
       "predicate": "numeric_match",
       "value": false,
-      "reason": "numeric_mismatch(w=[8.0], l=[9.0, 3.0, 12.0])"
+      "reason": "no_numbers_in_ground_truth"
     },
     {
       "predicate": "symbolic_match",
       "value": false,
-      "reason": "symbolic_mismatch"
+      "reason": "empty_after_normalize"
     },
     {
       "predicate": "confidence",
-      "value": "very_high",
-      "reason": "Relative error \u2248 50.00%; strong evidence of hallucination."
+      "value": "unknown",
+      "reason": "Cannot compute relative error (missing numbers)."
     },
     {
       "predicate": "verdict",
@@ -72,41 +72,114 @@
     {
       "rule": "numeric_match",
       "result": false,
-      "reason": "numeric_mismatch(w=[8.0], l=[9.0, 3.0, 12.0])"
+      "reason": "no_numbers_in_ground_truth"
     },
     {
       "rule": "symbolic_match",
       "result": false,
-      "reason": "symbolic_mismatch"
+      "reason": "empty_after_normalize"
     },
     {
       "rule": "confidence",
-      "result": "very_high",
-      "reason": "Relative error \u2248 50.00%; strong evidence of hallucination.",
-      "relative_error": 0.5
+      "result": "unknown",
+      "reason": "Cannot compute relative error (missing numbers).",
+      "relative_error": null
     },
     {
       "inference": "verdict",
       "predicate": "hallucinating",
-      "premise": "numeric_match \u2228 symbolic_match"
+      "premise": "numeric_match \u2228 symbolic_match",
+      "fopc_engine": "real",
+      "fopc_proof": [
+        {
+          "step": "rule_match",
+          "goal": "not_hallucinating(q)",
+          "clause": "not_hallucinating(q) \u2190 numeric_match(G, L)",
+          "subst": {
+            "q": "q"
+          }
+        },
+        {
+          "step": "rule_match",
+          "goal": "not_hallucinating(q)",
+          "clause": "not_hallucinating(q) \u2190 symbolic_match(G, L)",
+          "subst": {
+            "q": "q"
+          }
+        }
+      ]
     },
     {
       "inference": "abduction",
       "abduced_causes": [
         {
           "predicate": "abduced_cause",
-          "hypothesis": "numeric_error",
-          "form": "LLM may have made a numerical mistake (wrong constant, wrong operation, or rounding)."
-        },
-        {
-          "predicate": "abduced_cause",
           "hypothesis": "symbolic_error",
-          "form": "LLM may have used a different (incorrect) symbolic form or expression."
+          "form": "LLM may have used a different (incorrect) symbolic form or expression.",
+          "fopc_proof": [
+            {
+              "step": "rule_match",
+              "goal": "abduced_cause(symbolic_error)",
+              "clause": "abduced_cause(symbolic_error) \u2190 hallucinating(q), symbolic_mismatch(G, L)",
+              "subst": {}
+            },
+            {
+              "step": "fact_match",
+              "goal": "hallucinating(q)",
+              "fact": "hallucinating(q)",
+              "subst": {
+                "q": "q"
+              }
+            },
+            {
+              "step": "fact_match",
+              "goal": "symbolic_mismatch(G, L)",
+              "fact": "symbolic_mismatch(gt, llm)",
+              "subst": {
+                "G": "gt",
+                "L": "llm"
+              }
+            }
+          ]
         },
         {
           "predicate": "abduced_cause",
           "hypothesis": "both_numeric_and_symbolic",
-          "form": "Both numeric and symbolic mismatch; hallucination likely substantive."
+          "form": "Both numeric and symbolic mismatch; hallucination likely substantive.",
+          "fopc_proof": [
+            {
+              "step": "rule_match",
+              "goal": "abduced_cause(both_numeric_and_symbolic)",
+              "clause": "abduced_cause(both_numeric_and_symbolic) \u2190 hallucinating(q), numeric_mismatch(G, L), symbolic_mismatch(G2, L2)",
+              "subst": {}
+            },
+            {
+              "step": "fact_match",
+              "goal": "hallucinating(q)",
+              "fact": "hallucinating(q)",
+              "subst": {
+                "q": "q"
+              }
+            },
+            {
+              "step": "fact_match",
+              "goal": "numeric_mismatch(G, L)",
+              "fact": "numeric_mismatch(gt, llm)",
+              "subst": {
+                "G": "gt",
+                "L": "llm"
+              }
+            },
+            {
+              "step": "fact_match",
+              "goal": "symbolic_mismatch(G2, L2)",
+              "fact": "symbolic_mismatch(gt, llm)",
+              "subst": {
+                "G2": "gt",
+                "L2": "llm"
+              }
+            }
+          ]
         }
       ]
     },
@@ -117,13 +190,13 @@
           "step": 1,
           "type": "premise",
           "form": "P1: ground_truth(G)",
-          "value": "8"
+          "value": ""
         },
         {
           "step": 2,
           "type": "premise",
           "form": "P2: llm_answer(L)",
-          "value": "9 \\text{ feet} + 3 \\text{ feet} = 12 \\text{ feet}"
+          "value": "1. Use \\(10 - (10 \\div 10) - 10 + 10 = 6\\)."
         },
         {
           "step": 3,
@@ -155,18 +228,72 @@
   "abduced_causes": [
     {
       "predicate": "abduced_cause",
-      "hypothesis": "numeric_error",
-      "form": "LLM may have made a numerical mistake (wrong constant, wrong operation, or rounding)."
-    },
-    {
-      "predicate": "abduced_cause",
       "hypothesis": "symbolic_error",
-      "form": "LLM may have used a different (incorrect) symbolic form or expression."
+      "form": "LLM may have used a different (incorrect) symbolic form or expression.",
+      "fopc_proof": [
+        {
+          "step": "rule_match",
+          "goal": "abduced_cause(symbolic_error)",
+          "clause": "abduced_cause(symbolic_error) \u2190 hallucinating(q), symbolic_mismatch(G, L)",
+          "subst": {}
+        },
+        {
+          "step": "fact_match",
+          "goal": "hallucinating(q)",
+          "fact": "hallucinating(q)",
+          "subst": {
+            "q": "q"
+          }
+        },
+        {
+          "step": "fact_match",
+          "goal": "symbolic_mismatch(G, L)",
+          "fact": "symbolic_mismatch(gt, llm)",
+          "subst": {
+            "G": "gt",
+            "L": "llm"
+          }
+        }
+      ]
     },
     {
       "predicate": "abduced_cause",
       "hypothesis": "both_numeric_and_symbolic",
-      "form": "Both numeric and symbolic mismatch; hallucination likely substantive."
+      "form": "Both numeric and symbolic mismatch; hallucination likely substantive.",
+      "fopc_proof": [
+        {
+          "step": "rule_match",
+          "goal": "abduced_cause(both_numeric_and_symbolic)",
+          "clause": "abduced_cause(both_numeric_and_symbolic) \u2190 hallucinating(q), numeric_mismatch(G, L), symbolic_mismatch(G2, L2)",
+          "subst": {}
+        },
+        {
+          "step": "fact_match",
+          "goal": "hallucinating(q)",
+          "fact": "hallucinating(q)",
+          "subst": {
+            "q": "q"
+          }
+        },
+        {
+          "step": "fact_match",
+          "goal": "numeric_mismatch(G, L)",
+          "fact": "numeric_mismatch(gt, llm)",
+          "subst": {
+            "G": "gt",
+            "L": "llm"
+          }
+        },
+        {
+          "step": "fact_match",
+          "goal": "symbolic_mismatch(G2, L2)",
+          "fact": "symbolic_mismatch(gt, llm)",
+          "subst": {
+            "G2": "gt",
+            "L2": "llm"
+          }
+        }
+      ]
     }
   ],
   "inference_chain": [
@@ -174,13 +301,13 @@
       "step": 1,
       "type": "premise",
       "form": "P1: ground_truth(G)",
-      "value": "8"
+      "value": ""
     },
     {
       "step": 2,
       "type": "premise",
       "form": "P2: llm_answer(L)",
-      "value": "9 \\text{ feet} + 3 \\text{ feet} = 12 \\text{ feet}"
+      "value": "1. Use \\(10 - (10 \\div 10) - 10 + 10 = 6\\)."
     },
     {
       "step": 3,
@@ -207,6 +334,24 @@
       "value": "hallucinating"
     }
   ],
-  "confidence": "very_high",
-  "relative_error": 0.5
+  "fopc_proof": [
+    {
+      "step": "rule_match",
+      "goal": "not_hallucinating(q)",
+      "clause": "not_hallucinating(q) \u2190 numeric_match(G, L)",
+      "subst": {
+        "q": "q"
+      }
+    },
+    {
+      "step": "rule_match",
+      "goal": "not_hallucinating(q)",
+      "clause": "not_hallucinating(q) \u2190 symbolic_match(G, L)",
+      "subst": {
+        "q": "q"
+      }
+    }
+  ],
+  "confidence": "unknown",
+  "relative_error": null
 }
