@@ -113,7 +113,12 @@ def _normalize_expression(expr: str) -> str:
     """
     s = expr.strip()
     # Replace common division / multiplication markers with Python operators
-    s = s.replace("\\div", "/").replace("÷", "/").replace("×", "*")
+    s = (
+        s.replace("\\div", "/")
+        .replace("\\times", "*")
+        .replace("÷", "/")
+        .replace("×", "*")
+    )
     # Remove repeated spaces
     s = re.sub(r"\s+", " ", s)
     return s
