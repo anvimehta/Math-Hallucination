@@ -30,7 +30,18 @@ _load_dotenv()
 from wolfram_alpha import wolfram_query, wolfram_short_answer, extract_wolfram_steps
 
 # Real FOPC engine (unification + resolution)
-from fopc import fopc_deduce_verdict, fopc_deduce_equation_verdict, fopc_abduce_causes
+from fopc import (
+    fopc_deduce_verdict,
+    fopc_deduce_equation_verdict,
+    fopc_abduce_causes,
+    fopc_deduce_evidence_strength,
+    fopc_build_inference_chain,
+    fopc_aggregate_result,
+    fopc_deduce_diverges_at,
+    fopc_deduce_priority,
+    fopc_deduce_error_verdict,
+    fopc_expect_symbolic,
+)
 
 # -------------------------
 # Configuration
@@ -789,15 +800,34 @@ def step_by_step_breakdown_and_fopc(
 # -------------------------
 # FOPC-style representation and deduction
 # -------------------------
-def facts_and_rules(question_id: str, question: str, ground: dict, llm_answer: str, llm_reasoning: str) -> list[dict]:
-    """Build a minimal set of logical facts (for trace)."""
+def facts_and_rules(
+    question_id: str,
+    question: str,
+    ground: dict,
+    llm_answer: str,
+    llm_reasoning: str,
+    category: str = "",
+) -> list[dict]:
+    """Build a minimal set of logical facts (for trace). Includes expect_symbolic_answer when category is calculus/algebra."""
     gt_text = ground.get("raw_plaintext", "") or ""
-    return [
+    facts = [
         {"predicate": "question", "args": [question_id], "value": question},
         {"predicate": "ground_truth", "args": [question_id], "value": gt_text},
         {"predicate": "llm_answer", "args": [question_id], "value": llm_answer},
         {"predicate": "llm_reasoning", "args": [question_id], "value": llm_reasoning[:200] + "..." if len(llm_reasoning) > 200 else llm_reasoning},
     ]
+    if category:
+        facts.append({"predicate": "category", "args": [question_id], "value": category})
+        expect_sym, expect_proof = fopc_expect_symbolic(category)
+        if expect_sym:
+            facts.append({
+                "predicate": "expect_symbolic_answer",
+                "args": [question_id],
+                "value": True,
+                "form": f"expect_symbolic_answer({question_id}) ← category({question_id}, {category})",
+                "fopc_proof": expect_proof,
+            })
+    return facts
 
 
 def apply_rules_and_deduce(question_id: str, ground: dict, llm_answer: str) -> tuple[str, list[dict], str, dict]:
@@ -818,9 +848,17 @@ def apply_rules_and_deduce(question_id: str, ground: dict, llm_answer: str) -> t
     trace.append({"rule": "symbolic_match", "result": sym_ok, "reason": sym_reason})
     language_parts.append(f"Symbolic comparison: {sym_reason}.")
 
-    # Aggregation/statistical: relative error and confidence
-    rel_err, confidence, conf_expl = relative_error_and_confidence(gt_text, llm_answer)
-    trace.append({"rule": "confidence", "result": confidence, "reason": conf_expl, "relative_error": rel_err})
+    # Aggregation/statistical: relative error (oracle) + confidence (FOPC-derived)
+    rel_err, _, _ = relative_error_and_confidence(gt_text, llm_answer)
+    confidence, conf_expl, conf_proof = fopc_deduce_evidence_strength(rel_err, num_ok, NUMERIC_TOLERANCE)
+    trace.append({
+        "rule": "confidence",
+        "result": confidence,
+        "reason": conf_expl,
+        "relative_error": rel_err,
+        "fopc_engine": "real",
+        "fopc_proof": conf_proof,
+    })
     language_parts.append(f"Evidence strength: {conf_expl}")
 
     # Deduction via real FOPC: unification + resolution over Horn clauses
@@ -846,9 +884,16 @@ def apply_rules_and_deduce(question_id: str, ground: dict, llm_answer: str) -> t
     if abduced:
         language_parts.append("Possible causes: " + "; ".join(c.get("form", "") for c in abduced[:2]))
 
-    # Explicit inference chain (FOPC)
-    chain = build_inference_chain(gt_text, llm_answer, num_ok, sym_ok, verdict)
+    # Inference chain from FOPC proof trace (replaces fixed template)
+    chain = fopc_build_inference_chain(gt_text, llm_answer, num_ok, sym_ok, verdict, fopc_proof)
     trace.append({"inference": "chain", "inference_chain": chain})
+
+    # Meta-rules: prioritization (high_priority_hallucination, needs_human_review)
+    priority_flags, priority_proof = fopc_deduce_priority(
+        hallucinating=(verdict == "hallucinating"),
+        evidence_strength=confidence,
+        abduced_causes=abduced,
+    )
 
     extras = {
         "relative_error": rel_err,
@@ -856,6 +901,8 @@ def apply_rules_and_deduce(question_id: str, ground: dict, llm_answer: str) -> t
         "abduced_causes": abduced,
         "inference_chain": chain,
         "fopc_proof": fopc_proof,
+        "priority_flags": priority_flags,
+        "priority_fopc_proof": priority_proof,
     }
     return verdict, trace, " ".join(language_parts), extras
 
@@ -1021,6 +1068,7 @@ def validate_equation_claim(
     try:
         ground = get_ground_truth(llm_equation)
     except Exception as e:
+        verdict, error_proof = fopc_deduce_error_verdict(wolfram_failed=True)
         return {
             "question_id": "equation_claim",
             "question": f"equation equals {target}?",
@@ -1028,10 +1076,13 @@ def validate_equation_claim(
             "claimed_target": target,
             "actual_value": None,
             "wolfram_answer": f"[Wolfram error: {e}]",
-            "verdict": "error",
+            "verdict": verdict,
             "reasoning_explanation": str(e),
-            "_reasoning_trace": [{"rule": "wolfram_query", "result": False, "reason": str(e)}],
-            "_facts": [],
+            "_reasoning_trace": [
+                {"rule": "wolfram_query", "result": False, "reason": str(e)},
+                {"inference": "verdict", "predicate": verdict, "fopc_engine": "real", "fopc_proof": error_proof},
+            ],
+            "_facts": [{"predicate": "wolfram_query_failed", "args": ["question"], "value": True}],
         }
     actual = ground.get("decimal_value")
     gt_text = ground.get("raw_plaintext", "") or ""
@@ -1065,6 +1116,12 @@ def validate_equation_claim(
         llm_equation, target, actual, tolerance
     )
     facts.extend([{"predicate": f["predicate"], "args": f["args"], "value": f["value"], "form": f.get("form", "")} for f in fopc_steps])
+
+    # FOPC: diverges_at(Subexpr) ← step_with_discrepancy ∧ first_in_eval_order
+    diverges_subexprs, diverges_proof = fopc_deduce_diverges_at(hallucination_location)
+    for subexpr in diverges_subexprs:
+        facts.append({"predicate": "diverges_at", "args": [subexpr], "value": True, "form": f"diverges_at('{subexpr}')"})
+
     explanation = (
         step_explanation + "\n\n"
         f"Wolfram (exact): {gt_text[:150]}. "
@@ -1083,6 +1140,8 @@ def validate_equation_claim(
         "fopc_step_and_incorrect": fopc_steps,
         "hallucination_location": hallucination_location,
         "where_diverges_explanation": location_explanation,
+        "diverges_at": diverges_subexprs,
+        "_diverges_fopc_proof": diverges_proof,
         "_reasoning_trace": trace,
         "_facts": facts,
         "_fopc_proof": fopc_eq_proof,
@@ -1161,6 +1220,7 @@ def validate_word_problem(word_problem: str, expected_answer: str | None = None)
                         if (ground_alt.get("raw_plaintext") or "").strip():
                             ground = ground_alt
         except Exception as e:
+            verdict, error_proof = fopc_deduce_error_verdict(wolfram_failed=True)
             return {
                 "question_id": "word_problem",
                 "question": word_problem,
@@ -1170,10 +1230,13 @@ def validate_word_problem(word_problem: str, expected_answer: str | None = None)
                 "llm_answer": "",
                 "numeric_match": False,
                 "symbolic_match": False,
-                "verdict": "error",
+                "verdict": verdict,
                 "reasoning_explanation": str(e),
-                "_reasoning_trace": [{"rule": "wolfram_short_answer", "result": False, "reason": str(e)}],
-                "_facts": [],
+                "_reasoning_trace": [
+                    {"rule": "wolfram_short_answer", "result": False, "reason": str(e)},
+                    {"inference": "verdict", "predicate": verdict, "fopc_engine": "real", "fopc_proof": error_proof},
+                ],
+                "_facts": [{"predicate": "wolfram_query_failed", "args": ["question"], "value": True}],
             }
     llm_out = call_llm(word_problem)
     verdict, trace, explanation, extras = apply_rules_and_deduce("word_problem", ground, llm_out["answer"])
@@ -1249,7 +1312,7 @@ def run_validation(questions: list[dict] = None, use_cache: bool = True) -> list
             "reasoning_explanation": explanation,
         }
         row["_reasoning_trace"] = trace
-        row["_facts"] = facts_and_rules(qid, q, ground, llm_out["answer"], llm_out["reasoning"])
+        row["_facts"] = facts_and_rules(qid, q, ground, llm_out["answer"], llm_out["reasoning"], item.get("category", ""))
         row["_extras"] = extras
         rows.append(row)
 
@@ -1267,20 +1330,12 @@ def write_table_and_log(rows: list[dict]) -> None:
     table_path = os.path.join(RESULTS_DIR, RESULTS_TABLE)
     log_path = os.path.join(RESULTS_DIR, REASONING_LOG)
 
-    # Aggregation / statistical reasoning over the question bank
+    # Aggregation via FOPC: aggregate_result(N, K, R) ← all_processed ∧ count_hallucinating ∧ rate
     n = len(rows)
     k = sum(1 for r in rows if r.get("verdict") == "hallucinating")
-    rate = (k / n) if n else 0
-    aggregation = {
-        "total_questions": n,
-        "hallucination_count": k,
-        "hallucination_rate": rate,
-        "fopc": [
-            {"predicate": "aggregate", "args": ["total"], "value": n, "form": f"total_questions({n})"},
-            {"predicate": "aggregate", "args": ["hallucination_count"], "value": k, "form": f"hallucination_count({k})"},
-            {"predicate": "rate_hallucinating", "args": [k, n], "value": rate, "form": f"rate_hallucinating({k}, {n}) = {rate:.2%}"},
-        ],
-    }
+    aggregation, agg_proof = fopc_aggregate_result(n, k)
+    aggregation["fopc_proof"] = agg_proof
+    aggregation["fopc"] = aggregation.get("fopc_aggregation", [])  # backward compatibility
 
     # CSV: drop internal keys; add confidence and relative_error if present
     table_rows = []
@@ -1312,6 +1367,7 @@ def write_table_and_log(rows: list[dict]) -> None:
                 "fopc_proof": r.get("_extras", {}).get("fopc_proof", []),
                 "confidence": r.get("_extras", {}).get("confidence"),
                 "relative_error": r.get("_extras", {}).get("relative_error"),
+                "priority_flags": r.get("_extras", {}).get("priority_flags", []),
             }
             for r in rows
         ],
@@ -1402,6 +1458,7 @@ def main():
                     "fopc_proof": extras.get("fopc_proof", []),
                     "confidence": extras.get("confidence"),
                     "relative_error": extras.get("relative_error"),
+                    "priority_flags": extras.get("priority_flags", []),
                 },
                 f,
                 indent=2,
@@ -1473,10 +1530,12 @@ def main():
                     "step_by_step": row.get("step_by_step", []),
                     "hallucination_location": row.get("hallucination_location", []),
                     "where_diverges_explanation": row.get("where_diverges_explanation", ""),
+                    "diverges_at": row.get("diverges_at", []),
                     "fopc": row.get("fopc_step_and_incorrect", []),
                     "facts": row.get("_facts", []),
                     "reasoning_trace": row.get("_reasoning_trace", []),
                     "fopc_proof": row.get("_fopc_proof", []),
+                    "diverges_fopc_proof": row.get("_diverges_fopc_proof", []),
                 },
                 f,
                 indent=2,
@@ -1541,10 +1600,12 @@ def main():
                     "step_by_step": row.get("step_by_step", []),
                     "hallucination_location": row.get("hallucination_location", []),
                     "where_diverges_explanation": row.get("where_diverges_explanation", ""),
+                    "diverges_at": row.get("diverges_at", []),
                     "fopc": row.get("fopc_step_and_incorrect", []),
                     "facts": row.get("_facts", []),
                     "reasoning_trace": row.get("_reasoning_trace", []),
                     "fopc_proof": row.get("_fopc_proof", []),
+                    "diverges_fopc_proof": row.get("_diverges_fopc_proof", []),
                 },
                 f,
                 indent=2,

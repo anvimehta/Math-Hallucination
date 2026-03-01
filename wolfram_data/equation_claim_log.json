@@ -65,7 +65,7 @@
     },
     {
       "step_index": 7,
-      "subexpr": "log((e ** 5))",
+      "subexpr": "ln((e ** 5))",
       "value": 5.0,
       "op": "log",
       "children": [
@@ -74,12 +74,12 @@
     },
     {
       "step_index": 8,
-      "subexpr": "(sqrt((((34 * 52) + 73) - (144 / 4))) + log((e ** 5)))",
+      "subexpr": "(sqrt((((34 * 52) + 73) - (144 / 4))) + ln((e ** 5)))",
       "value": 47.485291572496,
       "op": "add",
       "children": [
         "sqrt((((34 * 52) + 73) - (144 / 4)))",
-        "log((e ** 5))"
+        "ln((e ** 5))"
       ]
     },
     {
@@ -103,11 +103,11 @@
     },
     {
       "step_index": 11,
-      "subexpr": "((sqrt((((34 * 52) + 73) - (144 / 4))) + log((e ** 5))) + (cos(0) ** 2))",
+      "subexpr": "((sqrt((((34 * 52) + 73) - (144 / 4))) + ln((e ** 5))) + (cos(0) ** 2))",
       "value": 48.485291572496,
       "op": "add",
       "children": [
-        "(sqrt((((34 * 52) + 73) - (144 / 4))) + log((e ** 5)))",
+        "(sqrt((((34 * 52) + 73) - (144 / 4))) + ln((e ** 5)))",
         "(cos(0) ** 2)"
       ]
     }
@@ -119,7 +119,21 @@
       "actual_value": 148.41315910257657,
       "required_value_to_reach_target": 16304523596.32231,
       "discrepancy": 16304523447.909151,
-      "abs_discrepancy": 16304523447.909151
+      "abs_discrepancy": 16304523447.909151,
+      "in_gap_combo": false,
+      "gap_combo_sum": null,
+      "first_wrong": false
+    },
+    {
+      "step_index": 1,
+      "subexpr": "(34 * 52)",
+      "actual_value": 1768.0,
+      "required_value_to_reach_target": 3684.0,
+      "discrepancy": 1916.0,
+      "abs_discrepancy": 1916.0,
+      "in_gap_combo": false,
+      "gap_combo_sum": null,
+      "first_wrong": true
     },
     {
       "step_index": 2,
@@ -127,7 +141,10 @@
       "actual_value": 1841.0,
       "required_value_to_reach_target": 3757.0,
       "discrepancy": 1916.0,
-      "abs_discrepancy": 1916.0
+      "abs_discrepancy": 1916.0,
+      "in_gap_combo": false,
+      "gap_combo_sum": null,
+      "first_wrong": false
     },
     {
       "step_index": 3,
@@ -135,7 +152,10 @@
       "actual_value": 36.0,
       "required_value_to_reach_target": -1880.0,
       "discrepancy": -1916.0,
-      "abs_discrepancy": 1916.0
+      "abs_discrepancy": 1916.0,
+      "in_gap_combo": false,
+      "gap_combo_sum": null,
+      "first_wrong": false
     },
     {
       "step_index": 4,
@@ -143,7 +163,10 @@
       "actual_value": 1805.0,
       "required_value_to_reach_target": 3721.0,
       "discrepancy": 1916.0,
-      "abs_discrepancy": 1916.0
+      "abs_discrepancy": 1916.0,
+      "in_gap_combo": false,
+      "gap_combo_sum": null,
+      "first_wrong": false
     },
     {
       "step_index": 5,
@@ -151,23 +174,21 @@
       "actual_value": 42.485291572496,
       "required_value_to_reach_target": 61.0,
       "discrepancy": 18.514708427503997,
-      "abs_discrepancy": 18.514708427503997
+      "abs_discrepancy": 18.514708427503997,
+      "in_gap_combo": true,
+      "gap_combo_sum": 18.514708427503997,
+      "first_wrong": false
     },
     {
       "step_index": 7,
-      "subexpr": "log((e ** 5))",
+      "subexpr": "ln((e ** 5))",
       "actual_value": 5.0,
       "required_value_to_reach_target": 23.514708427503997,
       "discrepancy": 18.514708427503997,
-      "abs_discrepancy": 18.514708427503997
-    },
-    {
-      "step_index": 8,
-      "subexpr": "(sqrt((((34 * 52) + 73) - (144 / 4))) + log((e ** 5)))",
-      "actual_value": 47.485291572496,
-      "required_value_to_reach_target": 66.0,
-      "discrepancy": 18.514708427503997,
-      "abs_discrepancy": 18.514708427503997
+      "abs_discrepancy": 18.514708427503997,
+      "in_gap_combo": false,
+      "gap_combo_sum": null,
+      "first_wrong": false
     },
     {
       "step_index": 10,
@@ -175,18 +196,50 @@
       "actual_value": 1.0,
       "required_value_to_reach_target": 19.514708427503997,
       "discrepancy": 18.514708427503997,
-      "abs_discrepancy": 18.514708427503997
+      "abs_discrepancy": 18.514708427503997,
+      "in_gap_combo": false,
+      "gap_combo_sum": null,
+      "first_wrong": false
     },
     {
       "step_index": 11,
-      "subexpr": "((sqrt((((34 * 52) + 73) - (144 / 4))) + log((e ** 5))) + (cos(0) ** 2))",
+      "subexpr": "((sqrt((((34 * 52) + 73) - (144 / 4))) + ln((e ** 5))) + (cos(0) ** 2))",
       "actual_value": 48.485291572496,
       "required_value_to_reach_target": 67.0,
       "discrepancy": 18.514708427503997,
-      "abs_discrepancy": 18.514708427503997
+      "abs_discrepancy": 18.514708427503997,
+      "in_gap_combo": false,
+      "gap_combo_sum": null,
+      "first_wrong": false
+    },
+    {
+      "step_index": 9,
+      "subexpr": "cos(0)",
+      "actual_value": 1.0,
+      "required_value_to_reach_target": 4.417545520705361,
+      "discrepancy": 3.417545520705361,
+      "abs_discrepancy": 3.417545520705361,
+      "in_gap_combo": false,
+      "gap_combo_sum": null,
+      "first_wrong": false
+    },
+    {
+      "step_index": 8,
+      "subexpr": "(sqrt((((34 * 52) + 73) - (144 / 4))) + ln((e ** 5)))",
+      "actual_value": 47.485291572496,
+      "required_value_to_reach_target": 47.485291572496,
+      "discrepancy": 0.0,
+      "abs_discrepancy": 0.0,
+      "in_gap_combo": false,
+      "gap_combo_sum": null,
+      "first_wrong": false
     }
   ],
-  "where_diverges_explanation": "To get 67.0, the equation would need each part to have different values. Our derived back-solve (no ChatGPT steps):\n  • (e ** 5): actual = 148.4, would need = 1.63e+10 (gap +1.63e+10)\n  • ((34 * 52) + 73): actual = 1841, would need = 3757 (gap +1916)\n  • (144 / 4): actual = 36, would need = -1880 (gap -1916)\n  • (((34 * 52) + 73) - (144 / 4)): actual = 1805, would need = 3721 (gap +1916)\n  • sqrt((((34 * 52) + 73) - (144 / 4))): actual = 42.49, would need = 61 (gap +18.51)\nLargest discrepancy is in the first listed sub-expression(s); that is where the equation diverges from the claimed 67.0.",
+  "where_diverges_explanation": "Claimed target: 67.0  |  Actual result (full expression): 48.485291572496  |  Total gap (actual \u2212 target) = -18.51\n(For each part below: 'value needed so total = target' = what that part would need to be for the whole expression to equal the target.)\n\n  Step 1  (34 * 52)\n        value when evaluated = 1768   |   value needed so total = target = 3684   |   discrepancy (required \u2212 actual) = +1916\n\n  Step 2  ((34 * 52) + 73)\n        value when evaluated = 1841   |   value needed so total = target = 3757   |   discrepancy (required \u2212 actual) = +1916\n\n  Step 3  (144 / 4)\n        value when evaluated = 36   |   value needed so total = target = -1880   |   discrepancy (required \u2212 actual) = -1916\n\n  Step 4  (((34 * 52) + 73) - (144 / 4))\n        value when evaluated = 1805   |   value needed so total = target = 3721   |   discrepancy (required \u2212 actual) = +1916\n\n  Step 5  sqrt((((34 * 52) + 73) - (144 / 4)))   \u2190 this part accounts for the total error\n        value when evaluated = 42.49   |   value needed so total = target = 61   |   discrepancy (required \u2212 actual) = +18.51\n\n  Step 6  (e ** 5)\n        value when evaluated = 148.4   |   value needed so total = target = 1.63e+10   |   discrepancy (required \u2212 actual) = +1.63e+10\n\n  Step 7  ln((e ** 5))\n        value when evaluated = 5   |   value needed so total = target = 23.51   |   discrepancy (required \u2212 actual) = +18.51\n\n  Step 8  (sqrt((((34 * 52) + 73) - (144 / 4))) + ln((e ** 5)))\n        value when evaluated = 47.49   |   value needed so total = target = 47.49   |   discrepancy (required \u2212 actual) = +0\n\n\u2192 Parts that account for the total error (their contributions sum to the gap above):\n     Step 5: sqrt((((34 * 52) + 73) - (144 / 4)))  \u2192  (actual \u2212 required) = -18.51\n     Sum = (-18.51) = -18.51  (= total gap -18.51)",
+  "diverges_at": [
+    "(34 * 52)",
+    "sqrt((((34 * 52) + 73) - (144 / 4)))"
+  ],
   "fopc": [
     {
       "predicate": "step",
@@ -246,19 +299,19 @@
       "predicate": "step",
       "args": [
         7,
-        "log((e ** 5))"
+        "ln((e ** 5))"
       ],
       "value": 5.0,
-      "form": "step(7, 'log((e ** 5))', 5.0)"
+      "form": "step(7, 'ln((e ** 5))', 5.0)"
     },
     {
       "predicate": "step",
       "args": [
         8,
-        "(sqrt((((34 * 52) + 73) - (144 / 4))) + log((e ** 5)))"
+        "(sqrt((((34 * 52) + 73) - (144 / 4))) + ln((e ** 5)))"
       ],
       "value": 47.485291572496,
-      "form": "step(8, '(sqrt((((34 * 52) + 73) - (144 / 4))) + log((e ** 5)))', 47.485291572496)"
+      "form": "step(8, '(sqrt((((34 * 52) + 73) - (144 / 4))) + ln((e ** 5)))', 47.485291572496)"
     },
     {
       "predicate": "step",
@@ -282,10 +335,10 @@
       "predicate": "step",
       "args": [
         11,
-        "((sqrt((((34 * 52) + 73) - (144 / 4))) + log((e ** 5))) + (cos(0) ** 2))"
+        "((sqrt((((34 * 52) + 73) - (144 / 4))) + ln((e ** 5))) + (cos(0) ** 2))"
       ],
       "value": 48.485291572496,
-      "form": "step(11, '((sqrt((((34 * 52) + 73) - (144 / 4))) + log((e ** 5))) + (cos(0) ** 2))', 48.485291572496)"
+      "form": "step(11, '((sqrt((((34 * 52) + 73) - (144 / 4))) + ln((e ** 5))) + (cos(0) ** 2))', 48.485291572496)"
     },
     {
       "predicate": "result",
@@ -310,7 +363,7 @@
         "result"
       ],
       "value": false,
-      "form": "¬equals(claimed, result)"
+      "form": "\u00acequals(claimed, result)"
     },
     {
       "predicate": "incorrect",
@@ -318,7 +371,7 @@
         "claimed_value"
       ],
       "value": true,
-      "form": "incorrect(67.0) ← ¬equals(claimed, result) ∧ result = 48.485291572496"
+      "form": "incorrect(67.0) \u2190 \u00acequals(claimed, result) \u2227 result = 48.485291572496"
     },
     {
       "predicate": "required_to_reach_target",
@@ -331,18 +384,18 @@
     {
       "predicate": "required_to_reach_target",
       "args": [
-        "((34 * 52) + 73)"
+        "(34 * 52)"
       ],
-      "value": 3757.0,
-      "form": "required(((34 * 52) + 73)...) = 3757 (actual 1841, discrepancy +1916)"
+      "value": 3684.0,
+      "form": "required((34 * 52)...) = 3684 (actual 1768, discrepancy +1916)"
     },
     {
       "predicate": "required_to_reach_target",
       "args": [
-        "(144 / 4)"
+        "((34 * 52) + 73)"
       ],
-      "value": -1880.0,
-      "form": "required((144 / 4)...) = -1880 (actual 36, discrepancy -1916)"
+      "value": 3757.0,
+      "form": "required(((34 * 52) + 73)...) = 3757 (actual 1841, discrepancy +1916)"
     }
   ],
   "facts": [
@@ -424,19 +477,19 @@
       "predicate": "step",
       "args": [
         7,
-        "log((e ** 5))"
+        "ln((e ** 5))"
       ],
       "value": 5.0,
-      "form": "step(7, 'log((e ** 5))', 5.0)"
+      "form": "step(7, 'ln((e ** 5))', 5.0)"
     },
     {
       "predicate": "step",
       "args": [
         8,
-        "(sqrt((((34 * 52) + 73) - (144 / 4))) + log((e ** 5)))"
+        "(sqrt((((34 * 52) + 73) - (144 / 4))) + ln((e ** 5)))"
       ],
       "value": 47.485291572496,
-      "form": "step(8, '(sqrt((((34 * 52) + 73) - (144 / 4))) + log((e ** 5)))', 47.485291572496)"
+      "form": "step(8, '(sqrt((((34 * 52) + 73) - (144 / 4))) + ln((e ** 5)))', 47.485291572496)"
     },
     {
       "predicate": "step",
@@ -460,10 +513,10 @@
       "predicate": "step",
       "args": [
         11,
-        "((sqrt((((34 * 52) + 73) - (144 / 4))) + log((e ** 5))) + (cos(0) ** 2))"
+        "((sqrt((((34 * 52) + 73) - (144 / 4))) + ln((e ** 5))) + (cos(0) ** 2))"
       ],
       "value": 48.485291572496,
-      "form": "step(11, '((sqrt((((34 * 52) + 73) - (144 / 4))) + log((e ** 5))) + (cos(0) ** 2))', 48.485291572496)"
+      "form": "step(11, '((sqrt((((34 * 52) + 73) - (144 / 4))) + ln((e ** 5))) + (cos(0) ** 2))', 48.485291572496)"
     },
     {
       "predicate": "result",
@@ -488,7 +541,7 @@
         "result"
       ],
       "value": false,
-      "form": "¬equals(claimed, result)"
+      "form": "\u00acequals(claimed, result)"
     },
     {
       "predicate": "incorrect",
@@ -496,7 +549,7 @@
         "claimed_value"
       ],
       "value": true,
-      "form": "incorrect(67.0) ← ¬equals(claimed, result) ∧ result = 48.485291572496"
+      "form": "incorrect(67.0) \u2190 \u00acequals(claimed, result) \u2227 result = 48.485291572496"
     },
     {
       "predicate": "required_to_reach_target",
@@ -509,18 +562,34 @@
     {
       "predicate": "required_to_reach_target",
       "args": [
+        "(34 * 52)"
+      ],
+      "value": 3684.0,
+      "form": "required((34 * 52)...) = 3684 (actual 1768, discrepancy +1916)"
+    },
+    {
+      "predicate": "required_to_reach_target",
+      "args": [
         "((34 * 52) + 73)"
       ],
       "value": 3757.0,
       "form": "required(((34 * 52) + 73)...) = 3757 (actual 1841, discrepancy +1916)"
     },
     {
-      "predicate": "required_to_reach_target",
+      "predicate": "diverges_at",
       "args": [
-        "(144 / 4)"
+        "(34 * 52)"
       ],
-      "value": -1880.0,
-      "form": "required((144 / 4)...) = -1880 (actual 36, discrepancy -1916)"
+      "value": true,
+      "form": "diverges_at('(34 * 52)')"
+    },
+    {
+      "predicate": "diverges_at",
+      "args": [
+        "sqrt((((34 * 52) + 73) - (144 / 4)))"
+      ],
+      "value": true,
+      "form": "diverges_at('sqrt((((34 * 52) + 73) - (144 / 4)))')"
     }
   ],
   "reasoning_trace": [
@@ -532,13 +601,13 @@
     {
       "inference": "verdict",
       "predicate": "hallucinating",
-      "premise": "equals_target ↔ (|actual - target| ≤ tolerance)",
+      "premise": "equals_target \u2194 (|actual - target| \u2264 tolerance)",
       "fopc_engine": "real",
       "fopc_proof": [
         {
           "step": "rule_match",
           "goal": "hallucinating_eq(q)",
-          "clause": "hallucinating_eq(q) ← not_equals(C, R)",
+          "clause": "hallucinating_eq(q) \u2190 not_equals(C, R)",
           "subst": {
             "q": "q"
           }
@@ -559,7 +628,7 @@
     {
       "step": "rule_match",
       "goal": "hallucinating_eq(q)",
-      "clause": "hallucinating_eq(q) ← not_equals(C, R)",
+      "clause": "hallucinating_eq(q) \u2190 not_equals(C, R)",
       "subst": {
         "q": "q"
       }
@@ -572,6 +641,52 @@
         "C": "claimed",
         "R": "result"
       }
+    }
+  ],
+  "diverges_fopc_proof": [
+    {
+      "step": "rule_match",
+      "goal": "diverges_at((34 * 52))",
+      "clause": "diverges_at(S) \u2190 step_with_discrepancy(S, I), first_in_eval_order(S)",
+      "subst": {
+        "S": "(34 * 52)"
+      }
+    },
+    {
+      "step": "fact_match",
+      "goal": "step_with_discrepancy((34 * 52), I)",
+      "fact": "step_with_discrepancy((34 * 52), 1)",
+      "subst": {
+        "I": "1"
+      }
+    },
+    {
+      "step": "fact_match",
+      "goal": "first_in_eval_order((34 * 52))",
+      "fact": "first_in_eval_order((34 * 52))",
+      "subst": {}
+    },
+    {
+      "step": "rule_match",
+      "goal": "diverges_at(sqrt((((34 * 52) + 73) - (144 / 4))))",
+      "clause": "diverges_at(S) \u2190 step_with_discrepancy(S, I), first_in_eval_order(S)",
+      "subst": {
+        "S": "sqrt((((34 * 52) + 73) - (144 / 4)))"
+      }
+    },
+    {
+      "step": "fact_match",
+      "goal": "step_with_discrepancy(sqrt((((34 * 52) + 73) - (144 / 4))), I)",
+      "fact": "step_with_discrepancy(sqrt((((34 * 52) + 73) - (144 / 4))), 5)",
+      "subst": {
+        "I": "5"
+      }
+    },
+    {
+      "step": "fact_match",
+      "goal": "first_in_eval_order(sqrt((((34 * 52) + 73) - (144 / 4))))",
+      "fact": "first_in_eval_order(sqrt((((34 * 52) + 73) - (144 / 4))))",
+      "subst": {}
     }
   ]
 }
