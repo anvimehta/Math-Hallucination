@@ -55,21 +55,21 @@
           "args": [
             "q1"
           ],
-          "value": "\\sqrt{1805} + \\ln(e^5) + \\cos(0)^2 \\approx 42.5 + 5 + 1 = 48.5"
+          "value": "\\sqrt{1805} + 5 + 1 \\approx 42.5 + 5 + 1 = 48.5"
         },
         {
           "predicate": "llm_reasoning",
           "args": [
             "q1"
           ],
-          "value": "To solve the expression step by step, we will break it down into parts:\n\n1. **Calculate \\( 34 \\times 52 \\)**:\n   \\[\n   34 \\times 52 = 1768\n   \\]\n\n2. **Add 73**:\n   \\[\n   1768 + 73 = 1841\n   \\]\n\n3. **C..."
+          "value": "Let's solve the expression step by step:\n\n1. **Calculate \\( 34 \\times 52 \\)**:\n   \\[\n   34 \\times 52 = 1768\n   \\]\n\n2. **Add 73**:\n   \\[\n   1768 + 73 = 1841\n   \\]\n\n3. **Calculate \\( 144 / 4 \\)**:\n   \\[..."
         }
       ],
       "reasoning_trace": [
         {
           "rule": "numeric_match",
           "result": false,
-          "reason": "numeric_mismatch(w=[6.0, 19.0, 5.0], l=[1805.0, 5.0, 0.0, 2.0, 42.5, 5.0, 1.0, 48.5])"
+          "reason": "numeric_mismatch(w=[6.0, 19.0, 5.0], l=[1805.0, 5.0, 1.0, 42.5, 5.0, 1.0, 48.5])"
         },
         {
           "rule": "symbolic_match",
@@ -120,7 +120,7 @@
               "step": 2,
               "type": "premise",
               "form": "P2: llm_answer(L)",
-              "value": "\\sqrt{1805} + \\ln(e^5) + \\cos(0)^2 \\approx 42.5 + 5 + 1 = 48.5"
+              "value": "\\sqrt{1805} + 5 + 1 \\approx 42.5 + 5 + 1 = 48.5"
             },
             {
               "step": 3,
@@ -178,7 +178,7 @@
           "step": 2,
           "type": "premise",
           "form": "P2: llm_answer(L)",
-          "value": "\\sqrt{1805} + \\ln(e^5) + \\cos(0)^2 \\approx 42.5 + 5 + 1 = 48.5"
+          "value": "\\sqrt{1805} + 5 + 1 \\approx 42.5 + 5 + 1 = 48.5"
         },
         {
           "step": 3,
@@ -237,7 +237,7 @@
           "args": [
             "q2"
           ],
-          "value": "To solve the integral \\( \\int x^4 \\sin(x) \\, dx \\), we will use integration by parts multiple times. The formula for integration by parts is:\n\n\\[\n\\int u \\, dv = uv - \\int v \\, du\n\\]\n\n### Step 1: Choos..."
+          "value": "To solve the integral \\( \\int x^4 \\sin(x) \\, dx \\), we will use integration by parts multiple times. The formula for integration by parts is:\n\n\\[\n\\int u \\, dv = uv - \\int v \\, du\n\\]\n\n### Step 1: First..."
         }
       ],
       "reasoning_trace": [
@@ -402,7 +402,7 @@
           "args": [
             "q3"
           ],
-          "value": "To solve the quadratic equation \\( x^2 - 5x + 6 = 0 \\), we can factor the equation.\n\n1. **Identify the coefficients**: The equation is in the form \\( ax^2 + bx + c = 0 \\), where \\( a = 1 \\), \\( b = -5..."
+          "value": "To solve the quadratic equation \\( x^2 - 5x + 6 = 0 \\), we can factor the equation.\n\n1. **Identify the coefficients**: The equation is in the standard form \\( ax^2 + bx + c = 0 \\), where \\( a = 1 \\), ..."
         }
       ],
       "reasoning_trace": [
@@ -550,7 +550,7 @@
           "args": [
             "q4"
           ],
-          "value": "f'(x) = e^x(3x^2 + x^3)"
+          "value": "f'(x) = e^x(x^2(3 + x))"
         },
         {
           "predicate": "llm_reasoning",
@@ -610,7 +610,7 @@
               "step": 2,
               "type": "premise",
               "form": "P2: llm_answer(L)",
-              "value": "f'(x) = e^x(3x^2 + x^3)"
+              "value": "f'(x) = e^x(x^2(3 + x))"
             },
             {
               "step": 3,
@@ -663,7 +663,7 @@
           "step": 2,
           "type": "premise",
           "form": "P2: llm_answer(L)",
-          "value": "f'(x) = e^x(3x^2 + x^3)"
+          "value": "f'(x) = e^x(x^2(3 + x))"
         },
         {
           "step": 3,
@@ -715,14 +715,14 @@
           "args": [
             "q5"
           ],
-          "value": "\\lim_{x \\to 0} \\cos(x) = \\cos(0) = 1"
+          "value": "\\lim_{x \\to 0} \\frac{\\sin(x)}{x} = 1"
         },
         {
           "predicate": "llm_reasoning",
           "args": [
             "q5"
           ],
-          "value": "To find the limit of \\(\\frac{\\sin(x)}{x}\\) as \\(x\\) approaches 0, we can use the following reasoning:\n\n1. **Direct Substitution**: If we directly substitute \\(x = 0\\) into the expression \\(\\frac{\\sin(..."
+          "value": "To find the limit of \\(\\frac{\\sin(x)}{x}\\) as \\(x\\) approaches 0, we can use the following reasoning:\n\n1. **Direct Substitution**: If we directly substitute \\(x = 0\\) into \\(\\frac{\\sin(x)}{x}\\), we ge..."
         }
       ],
       "reasoning_trace": [
@@ -775,7 +775,7 @@
               "step": 2,
               "type": "premise",
               "form": "P2: llm_answer(L)",
-              "value": "\\lim_{x \\to 0} \\cos(x) = \\cos(0) = 1"
+              "value": "\\lim_{x \\to 0} \\frac{\\sin(x)}{x} = 1"
             },
             {
               "step": 3,
@@ -828,7 +828,7 @@
           "step": 2,
           "type": "premise",
           "form": "P2: llm_answer(L)",
-          "value": "\\lim_{x \\to 0} \\cos(x) = \\cos(0) = 1"
+          "value": "\\lim_{x \\to 0} \\frac{\\sin(x)}{x} = 1"
         },
         {
           "step": 3,

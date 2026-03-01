@@ -1,8 +1,10 @@
 {
-  "question": "what is a quite hard equation that results in 1000",
+  "question": "A train leaves at 2pm at 60 mph. Another at 3pm at 80 mph. When does the second catch the first?",
+  "ground_truth": "",
+  "ground_truth_value": null,
   "wolfram_answer": "",
-  "llm_answer": "The equation \\( 5x^2 - 3x + 7 = 1000 \\) is a quite hard equation that results in 1000.",
-  "llm_reasoning": "Let's create a challenging equation that results in 1000. We can use a combination of operations and variables. \n\nConsider the equation:\n\n\\[ 5x^2 - 3x + 7 = 1000 \\]\n\n**Step 1: Rearrange the equation.**\n\nSubtract 1000 from both sides:\n\n\\[ 5x^2 - 3x + 7 - 1000 = 0 \\]\n\nThis simplifies to:\n\n\\[ 5x^2 - 3x - 993 = 0 \\]\n\n**Step 2: Use the quadratic formula.**\n\nThe quadratic formula is given by:\n\n\\[ x = \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a} \\]\n\nHere, \\( a = 5 \\), \\( b = -3 \\), and \\( c = -993 \\).\n\n**Step 3:",
+  "llm_answer": "3 \\text{ PM} + 3 \\text{ hours} = 6 \\text{ PM}",
+  "llm_reasoning": "To find out when the second train catches the first, we can follow these steps:\n\n1. **Determine the head start of the first train**: \n   The first train leaves at 2 PM and the second train leaves at 3 PM, giving the first train a 1-hour head start. \n   In that hour, the first train travels:\n   \\[\n   \\text{Distance} = \\text{Speed} \\times \\text{Time} = 60 \\text{ mph} \\times 1 \\text{ hour} = 60 \\text{ miles}\n   \\]\n\n2. **Set up the equation for when the second train catches up**:\n   Let \\( t \\) be t",
   "verdict": "hallucinating",
   "numeric_match": false,
   "symbolic_match": false,
@@ -13,7 +15,7 @@
       "args": [
         "word_problem"
       ],
-      "value": "what is a quite hard equation that results in 1000"
+      "value": "A train leaves at 2pm at 60 mph. Another at 3pm at 80 mph. When does the second catch the first?"
     },
     {
       "predicate": "ground_truth",
@@ -21,14 +23,19 @@
       "value": ""
     },
     {
+      "predicate": "ground_truth_value",
+      "args": [],
+      "value": null
+    },
+    {
       "predicate": "llm_answer",
       "args": [],
-      "value": "The equation \\( 5x^2 - 3x + 7 = 1000 \\) is a quite hard equation that results in 1000."
+      "value": "3 \\text{ PM} + 3 \\text{ hours} = 6 \\text{ PM}"
     },
     {
       "predicate": "llm_reasoning",
       "args": [],
-      "value": "Let's create a challenging equation that results in 1000. We can use a combination of operations and variables. \n\nConsider the equation:\n\n\\[ 5x^2 - 3x + 7 = 1000 \\]\n\n**Step 1: Rearrange the equation.**\n\nSubtract 1000 from both sides:\n\n\\[ 5x^2 - 3x + 7 - 1000 = 0 \\]\n\nThis simplifies to:\n\n\\[ 5x^2 - 3x"
+      "value": "To find out when the second train catches the first, we can follow these steps:\n\n1. **Determine the head start of the first train**: \n   The first train leaves at 2 PM and the second train leaves at 3 PM, giving the first train a 1-hour head start. \n   In that hour, the first train travels:\n   \\[\n  "
     },
     {
       "predicate": "numeric_match",
@@ -111,7 +118,7 @@
           "step": 2,
           "type": "premise",
           "form": "P2: llm_answer(L)",
-          "value": "The equation \\( 5x^2 - 3x + 7 = 1000 \\) is a quite hard equation that results in"
+          "value": "3 \\text{ PM} + 3 \\text{ hours} = 6 \\text{ PM}"
         },
         {
           "step": 3,
@@ -163,7 +170,7 @@
       "step": 2,
       "type": "premise",
       "form": "P2: llm_answer(L)",
-      "value": "The equation \\( 5x^2 - 3x + 7 = 1000 \\) is a quite hard equation that results in"
+      "value": "3 \\text{ PM} + 3 \\text{ hours} = 6 \\text{ PM}"
     },
     {
       "step": 3,

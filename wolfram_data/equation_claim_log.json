@@ -1,8 +1,8 @@
 {
   "prompt_target": 99.0,
-  "llm_equation": "sqrt(10000) + ln(e^2) * 10 - cos(0) * 1.0 * 1.0",
+  "llm_equation": "sqrt(10000) + 50 * sin(0) + ln(e^2) * 25 - cos(0) * 1",
   "claimed_target": 99.0,
-  "actual_value": 119.0,
+  "actual_value": 149.0,
   "verdict": "hallucinating",
   "step_by_step": [
     {
@@ -16,6 +16,35 @@
     },
     {
       "step_index": 2,
+      "subexpr": "sin(0)",
+      "value": 0.0,
+      "op": "sin",
+      "children": [
+        "0"
+      ]
+    },
+    {
+      "step_index": 3,
+      "subexpr": "(50 * sin(0))",
+      "value": 0.0,
+      "op": "mult",
+      "children": [
+        "50",
+        "sin(0)"
+      ]
+    },
+    {
+      "step_index": 4,
+      "subexpr": "(sqrt(10000) + (50 * sin(0)))",
+      "value": 100.0,
+      "op": "add",
+      "children": [
+        "sqrt(10000)",
+        "(50 * sin(0))"
+      ]
+    },
+    {
+      "step_index": 5,
       "subexpr": "(e ** 2)",
       "value": 7.3890560989306495,
       "op": "pow",
@@ -25,8 +54,8 @@
       ]
     },
     {
-      "step_index": 3,
-      "subexpr": "log((e ** 2))",
+      "step_index": 6,
+      "subexpr": "ln((e ** 2))",
       "value": 2.0,
       "op": "log",
       "children": [
@@ -34,27 +63,27 @@
       ]
     },
     {
-      "step_index": 4,
-      "subexpr": "(log((e ** 2)) * 10)",
-      "value": 20.0,
+      "step_index": 7,
+      "subexpr": "(ln((e ** 2)) * 25)",
+      "value": 50.0,
       "op": "mult",
       "children": [
-        "log((e ** 2))",
-        "10"
+        "ln((e ** 2))",
+        "25"
       ]
     },
     {
-      "step_index": 5,
-      "subexpr": "(sqrt(10000) + (log((e ** 2)) * 10))",
-      "value": 120.0,
+      "step_index": 8,
+      "subexpr": "((sqrt(10000) + (50 * sin(0))) + (ln((e ** 2)) * 25))",
+      "value": 150.0,
       "op": "add",
       "children": [
-        "sqrt(10000)",
-        "(log((e ** 2)) * 10)"
+        "(sqrt(10000) + (50 * sin(0)))",
+        "(ln((e ** 2)) * 25)"
       ]
     },
     {
-      "step_index": 6,
+      "step_index": 9,
       "subexpr": "cos(0)",
       "value": 1.0,
       "op": "cos",
@@ -63,33 +92,23 @@
       ]
     },
     {
-      "step_index": 7,
-      "subexpr": "(cos(0) * 1.0)",
+      "step_index": 10,
+      "subexpr": "(cos(0) * 1)",
       "value": 1.0,
       "op": "mult",
       "children": [
         "cos(0)",
-        "1.0"
+        "1"
       ]
     },
     {
-      "step_index": 8,
-      "subexpr": "((cos(0) * 1.0) * 1.0)",
-      "value": 1.0,
-      "op": "mult",
-      "children": [
-        "(cos(0) * 1.0)",
-        "1.0"
-      ]
-    },
-    {
-      "step_index": 9,
-      "subexpr": "((sqrt(10000) + (log((e ** 2)) * 10)) - ((cos(0) * 1.0) * 1.0))",
-      "value": 119.0,
+      "step_index": 11,
+      "subexpr": "(((sqrt(10000) + (50 * sin(0))) + (ln((e ** 2)) * 25)) - (cos(0) * 1))",
+      "value": 149.0,
       "op": "sub",
       "children": [
-        "(sqrt(10000) + (log((e ** 2)) * 10))",
-        "((cos(0) * 1.0) * 1.0)"
+        "((sqrt(10000) + (50 * sin(0))) + (ln((e ** 2)) * 25))",
+        "(cos(0) * 1)"
       ]
     }
   ],
@@ -98,44 +117,114 @@
       "step_index": 1,
       "subexpr": "sqrt(10000)",
       "actual_value": 100.0,
-      "required_value_to_reach_target": 80.0,
-      "discrepancy": -20.0,
-      "abs_discrepancy": 20.0
+      "required_value_to_reach_target": 50.0,
+      "discrepancy": -50.0,
+      "abs_discrepancy": 50.0,
+      "in_gap_combo": true,
+      "gap_combo_sum": -50.0,
+      "first_wrong": true
+    },
+    {
+      "step_index": 3,
+      "subexpr": "(50 * sin(0))",
+      "actual_value": 0.0,
+      "required_value_to_reach_target": -50.0,
+      "discrepancy": -50.0,
+      "abs_discrepancy": 50.0,
+      "in_gap_combo": false,
+      "gap_combo_sum": null,
+      "first_wrong": false
     },
     {
       "step_index": 4,
-      "subexpr": "(log((e ** 2)) * 10)",
-      "actual_value": 20.0,
-      "required_value_to_reach_target": 0.0,
-      "discrepancy": -20.0,
-      "abs_discrepancy": 20.0
+      "subexpr": "(sqrt(10000) + (50 * sin(0)))",
+      "actual_value": 100.0,
+      "required_value_to_reach_target": 50.0,
+      "discrepancy": -50.0,
+      "abs_discrepancy": 50.0,
+      "in_gap_combo": false,
+      "gap_combo_sum": null,
+      "first_wrong": false
     },
     {
-      "step_index": 5,
-      "subexpr": "(sqrt(10000) + (log((e ** 2)) * 10))",
-      "actual_value": 120.0,
-      "required_value_to_reach_target": 100.0,
-      "discrepancy": -20.0,
-      "abs_discrepancy": 20.0
+      "step_index": 7,
+      "subexpr": "(ln((e ** 2)) * 25)",
+      "actual_value": 50.0,
+      "required_value_to_reach_target": 0.0,
+      "discrepancy": -50.0,
+      "abs_discrepancy": 50.0,
+      "in_gap_combo": false,
+      "gap_combo_sum": null,
+      "first_wrong": false
     },
     {
       "step_index": 8,
-      "subexpr": "((cos(0) * 1.0) * 1.0)",
-      "actual_value": 1.0,
-      "required_value_to_reach_target": 21.0,
-      "discrepancy": 20.0,
-      "abs_discrepancy": 20.0
+      "subexpr": "((sqrt(10000) + (50 * sin(0))) + (ln((e ** 2)) * 25))",
+      "actual_value": 150.0,
+      "required_value_to_reach_target": 100.0,
+      "discrepancy": -50.0,
+      "abs_discrepancy": 50.0,
+      "in_gap_combo": false,
+      "gap_combo_sum": null,
+      "first_wrong": false
     },
     {
       "step_index": 9,
-      "subexpr": "((sqrt(10000) + (log((e ** 2)) * 10)) - ((cos(0) * 1.0) * 1.0))",
-      "actual_value": 119.0,
+      "subexpr": "cos(0)",
+      "actual_value": 1.0,
+      "required_value_to_reach_target": 51.0,
+      "discrepancy": 50.0,
+      "abs_discrepancy": 50.0,
+      "in_gap_combo": false,
+      "gap_combo_sum": null,
+      "first_wrong": false
+    },
+    {
+      "step_index": 10,
+      "subexpr": "(cos(0) * 1)",
+      "actual_value": 1.0,
+      "required_value_to_reach_target": 51.0,
+      "discrepancy": 50.0,
+      "abs_discrepancy": 50.0,
+      "in_gap_combo": false,
+      "gap_combo_sum": null,
+      "first_wrong": false
+    },
+    {
+      "step_index": 11,
+      "subexpr": "(((sqrt(10000) + (50 * sin(0))) + (ln((e ** 2)) * 25)) - (cos(0) * 1))",
+      "actual_value": 149.0,
       "required_value_to_reach_target": 99.0,
-      "discrepancy": -20.0,
-      "abs_discrepancy": 20.0
+      "discrepancy": -50.0,
+      "abs_discrepancy": 50.0,
+      "in_gap_combo": false,
+      "gap_combo_sum": null,
+      "first_wrong": false
+    },
+    {
+      "step_index": 5,
+      "subexpr": "(e ** 2)",
+      "actual_value": 7.3890560989306495,
+      "required_value_to_reach_target": 1.0,
+      "discrepancy": -6.3890560989306495,
+      "abs_discrepancy": 6.3890560989306495,
+      "in_gap_combo": false,
+      "gap_combo_sum": null,
+      "first_wrong": false
+    },
+    {
+      "step_index": 6,
+      "subexpr": "ln((e ** 2))",
+      "actual_value": 2.0,
+      "required_value_to_reach_target": 0.0,
+      "discrepancy": -2.0,
+      "abs_discrepancy": 2.0,
+      "in_gap_combo": false,
+      "gap_combo_sum": null,
+      "first_wrong": false
     }
   ],
-  "where_diverges_explanation": "To get 99.0, the equation would need each part to have different values. Our derived back-solve (no ChatGPT steps):\n  \u2022 sqrt(10000): actual = 100, would need = 80 (gap -20)\n  \u2022 (log((e ** 2)) * 10): actual = 20, would need = 0 (gap -20)\n  \u2022 (sqrt(10000) + (log((e ** 2)) * 10)): actual = 120, would need = 100 (gap -20)\n  \u2022 ((cos(0) * 1.0) * 1.0): actual = 1, would need = 21 (gap +20)\n  \u2022 ((sqrt(10000) + (log((e ** 2)) * 10)) - ((cos(0) * 1.0) *...: actual = 119, would need = 99 (gap -20)\nLargest discrepancy is in the first listed sub-expression(s); that is where the equation diverges from the claimed 99.0.",
+  "where_diverges_explanation": "Claimed target: 99.0  |  Actual result (full expression): 149.0  |  Total gap (actual \u2212 target) = +50\n(For each part below: 'value needed so total = target' = what that part would need to be for the whole expression to equal the target.)\n\n  Step 1  sqrt(10000)   \u2190 this part accounts for the total error\n        value when evaluated = 100   |   value needed so total = target = 50   |   discrepancy (required \u2212 actual) = -50\n\n  Step 3  (50 * sin(0))\n        value when evaluated = 0   |   value needed so total = target = -50   |   discrepancy (required \u2212 actual) = -50\n\n  Step 4  (sqrt(10000) + (50 * sin(0)))\n        value when evaluated = 100   |   value needed so total = target = 50   |   discrepancy (required \u2212 actual) = -50\n\n  Step 5  (e ** 2)\n        value when evaluated = 7.389   |   value needed so total = target = 1   |   discrepancy (required \u2212 actual) = -6.389\n\n  Step 6  ln((e ** 2))\n        value when evaluated = 2   |   value needed so total = target = 0   |   discrepancy (required \u2212 actual) = -2\n\n  Step 7  (ln((e ** 2)) * 25)\n        value when evaluated = 50   |   value needed so total = target = 0   |   discrepancy (required \u2212 actual) = -50\n\n  Step 8  ((sqrt(10000) + (50 * sin(0))) + (ln((e ** 2)) * 25))\n        value when evaluated = 150   |   value needed so total = target = 100   |   discrepancy (required \u2212 actual) = -50\n\n  Step 9  cos(0)\n        value when evaluated = 1   |   value needed so total = target = 51   |   discrepancy (required \u2212 actual) = +50\n\n\u2192 Parts that account for the total error (their contributions sum to the gap above):\n     Step 1: sqrt(10000)  \u2192  (actual \u2212 required) = +50\n     Sum = (+50) = +50  (= total gap +50)",
   "fopc": [
     {
       "predicate": "step",
@@ -150,81 +239,99 @@
       "predicate": "step",
       "args": [
         2,
-        "(e ** 2)"
+        "sin(0)"
       ],
-      "value": 7.3890560989306495,
-      "form": "step(2, '(e ** 2)', 7.3890560989306495)"
+      "value": 0.0,
+      "form": "step(2, 'sin(0)', 0.0)"
     },
     {
       "predicate": "step",
       "args": [
         3,
-        "log((e ** 2))"
+        "(50 * sin(0))"
       ],
-      "value": 2.0,
-      "form": "step(3, 'log((e ** 2))', 2.0)"
+      "value": 0.0,
+      "form": "step(3, '(50 * sin(0))', 0.0)"
     },
     {
       "predicate": "step",
       "args": [
         4,
-        "(log((e ** 2)) * 10)"
+        "(sqrt(10000) + (50 * sin(0)))"
       ],
-      "value": 20.0,
-      "form": "step(4, '(log((e ** 2)) * 10)', 20.0)"
+      "value": 100.0,
+      "form": "step(4, '(sqrt(10000) + (50 * sin(0)))', 100.0)"
     },
     {
       "predicate": "step",
       "args": [
         5,
-        "(sqrt(10000) + (log((e ** 2)) * 10))"
+        "(e ** 2)"
       ],
-      "value": 120.0,
-      "form": "step(5, '(sqrt(10000) + (log((e ** 2)) * 10))', 120.0)"
+      "value": 7.3890560989306495,
+      "form": "step(5, '(e ** 2)', 7.3890560989306495)"
     },
     {
       "predicate": "step",
       "args": [
         6,
-        "cos(0)"
+        "ln((e ** 2))"
       ],
-      "value": 1.0,
-      "form": "step(6, 'cos(0)', 1.0)"
+      "value": 2.0,
+      "form": "step(6, 'ln((e ** 2))', 2.0)"
     },
     {
       "predicate": "step",
       "args": [
         7,
-        "(cos(0) * 1.0)"
+        "(ln((e ** 2)) * 25)"
       ],
-      "value": 1.0,
-      "form": "step(7, '(cos(0) * 1.0)', 1.0)"
+      "value": 50.0,
+      "form": "step(7, '(ln((e ** 2)) * 25)', 50.0)"
     },
     {
       "predicate": "step",
       "args": [
         8,
-        "((cos(0) * 1.0) * 1.0)"
+        "((sqrt(10000) + (50 * sin(0))) + (ln((e ** 2)) * 25))"
       ],
-      "value": 1.0,
-      "form": "step(8, '((cos(0) * 1.0) * 1.0)', 1.0)"
+      "value": 150.0,
+      "form": "step(8, '((sqrt(10000) + (50 * sin(0))) + (ln((e ** 2)) * 25))', 150.0)"
     },
     {
       "predicate": "step",
       "args": [
         9,
-        "((sqrt(10000) + (log((e ** 2)) * 10)) - ((cos(0) * 1.0) * 1.0))"
+        "cos(0)"
       ],
-      "value": 119.0,
-      "form": "step(9, '((sqrt(10000) + (log((e ** 2)) * 10)) - ((cos(0) * 1.0) * 1.0))', 119.0)"
+      "value": 1.0,
+      "form": "step(9, 'cos(0)', 1.0)"
+    },
+    {
+      "predicate": "step",
+      "args": [
+        10,
+        "(cos(0) * 1)"
+      ],
+      "value": 1.0,
+      "form": "step(10, '(cos(0) * 1)', 1.0)"
+    },
+    {
+      "predicate": "step",
+      "args": [
+        11,
+        "(((sqrt(10000) + (50 * sin(0))) + (ln((e ** 2)) * 25)) - (cos(0) * 1))"
+      ],
+      "value": 149.0,
+      "form": "step(11, '(((sqrt(10000) + (50 * sin(0))) + (ln((e ** 2)) * 25)) - (cos(0) * 1))', 149.0)"
     },
     {
       "predicate": "result",
       "args": [
         "actual"
       ],
-      "value": 119.0,
-      "form": "result(actual) = 119.0"
+      "value": 149.0,
+      "form": "result(actual) = 149.0"
     },
     {
       "predicate": "claimed",
@@ -249,31 +356,31 @@
         "claimed_value"
       ],
       "value": true,
-      "form": "incorrect(99.0) \u2190 \u00acequals(claimed, result) \u2227 result = 119.0"
+      "form": "incorrect(99.0) \u2190 \u00acequals(claimed, result) \u2227 result = 149.0"
     },
     {
       "predicate": "required_to_reach_target",
       "args": [
         "sqrt(10000)"
       ],
-      "value": 80.0,
-      "form": "required(sqrt(10000)...) = 80 (actual 100, discrepancy -20)"
+      "value": 50.0,
+      "form": "required(sqrt(10000)...) = 50 (actual 100, discrepancy -50)"
     },
     {
       "predicate": "required_to_reach_target",
       "args": [
-        "(log((e ** 2)) * 10)"
+        "(50 * sin(0))"
       ],
-      "value": 0.0,
-      "form": "required((log((e ** 2)) * 10)...) = 0 (actual 20, discrepancy -20)"
+      "value": -50.0,
+      "form": "required((50 * sin(0))...) = -50 (actual 0, discrepancy -50)"
     },
     {
       "predicate": "required_to_reach_target",
       "args": [
-        "(sqrt(10000) + (log((e ** 2)) * 10))"
+        "(sqrt(10000) + (50 * sin(0)))"
       ],
-      "value": 100.0,
-      "form": "required((sqrt(10000) + (log((e ** 2)) * 10))...) = 100 (actual 120, discrepancy -20)"
+      "value": 50.0,
+      "form": "required((sqrt(10000) + (50 * sin(0)))...) = 50 (actual 100, discrepancy -50)"
     }
   ],
   "facts": [
@@ -285,17 +392,17 @@
     {
       "predicate": "llm_equation",
       "args": [],
-      "value": "sqrt(10000) + ln(e^2) * 10 - cos(0) * 1.0 * 1.0"
+      "value": "sqrt(10000) + 50 * sin(0) + ln(e^2) * 25 - cos(0) * 1"
     },
     {
       "predicate": "ground_truth_expression",
       "args": [],
-      "value": "119"
+      "value": "149"
     },
     {
       "predicate": "actual_value",
       "args": [],
-      "value": 119.0
+      "value": 149.0
     },
     {
       "predicate": "step",
@@ -310,81 +417,99 @@
       "predicate": "step",
       "args": [
         2,
-        "(e ** 2)"
+        "sin(0)"
       ],
-      "value": 7.3890560989306495,
-      "form": "step(2, '(e ** 2)', 7.3890560989306495)"
+      "value": 0.0,
+      "form": "step(2, 'sin(0)', 0.0)"
     },
     {
       "predicate": "step",
       "args": [
         3,
-        "log((e ** 2))"
+        "(50 * sin(0))"
       ],
-      "value": 2.0,
-      "form": "step(3, 'log((e ** 2))', 2.0)"
+      "value": 0.0,
+      "form": "step(3, '(50 * sin(0))', 0.0)"
     },
     {
       "predicate": "step",
       "args": [
         4,
-        "(log((e ** 2)) * 10)"
+        "(sqrt(10000) + (50 * sin(0)))"
       ],
-      "value": 20.0,
-      "form": "step(4, '(log((e ** 2)) * 10)', 20.0)"
+      "value": 100.0,
+      "form": "step(4, '(sqrt(10000) + (50 * sin(0)))', 100.0)"
     },
     {
       "predicate": "step",
       "args": [
         5,
-        "(sqrt(10000) + (log((e ** 2)) * 10))"
+        "(e ** 2)"
       ],
-      "value": 120.0,
-      "form": "step(5, '(sqrt(10000) + (log((e ** 2)) * 10))', 120.0)"
+      "value": 7.3890560989306495,
+      "form": "step(5, '(e ** 2)', 7.3890560989306495)"
     },
     {
       "predicate": "step",
       "args": [
         6,
-        "cos(0)"
+        "ln((e ** 2))"
       ],
-      "value": 1.0,
-      "form": "step(6, 'cos(0)', 1.0)"
+      "value": 2.0,
+      "form": "step(6, 'ln((e ** 2))', 2.0)"
     },
     {
       "predicate": "step",
       "args": [
         7,
-        "(cos(0) * 1.0)"
+        "(ln((e ** 2)) * 25)"
       ],
-      "value": 1.0,
-      "form": "step(7, '(cos(0) * 1.0)', 1.0)"
+      "value": 50.0,
+      "form": "step(7, '(ln((e ** 2)) * 25)', 50.0)"
     },
     {
       "predicate": "step",
       "args": [
         8,
-        "((cos(0) * 1.0) * 1.0)"
+        "((sqrt(10000) + (50 * sin(0))) + (ln((e ** 2)) * 25))"
       ],
-      "value": 1.0,
-      "form": "step(8, '((cos(0) * 1.0) * 1.0)', 1.0)"
+      "value": 150.0,
+      "form": "step(8, '((sqrt(10000) + (50 * sin(0))) + (ln((e ** 2)) * 25))', 150.0)"
     },
     {
       "predicate": "step",
       "args": [
         9,
-        "((sqrt(10000) + (log((e ** 2)) * 10)) - ((cos(0) * 1.0) * 1.0))"
+        "cos(0)"
       ],
-      "value": 119.0,
-      "form": "step(9, '((sqrt(10000) + (log((e ** 2)) * 10)) - ((cos(0) * 1.0) * 1.0))', 119.0)"
+      "value": 1.0,
+      "form": "step(9, 'cos(0)', 1.0)"
+    },
+    {
+      "predicate": "step",
+      "args": [
+        10,
+        "(cos(0) * 1)"
+      ],
+      "value": 1.0,
+      "form": "step(10, '(cos(0) * 1)', 1.0)"
+    },
+    {
+      "predicate": "step",
+      "args": [
+        11,
+        "(((sqrt(10000) + (50 * sin(0))) + (ln((e ** 2)) * 25)) - (cos(0) * 1))"
+      ],
+      "value": 149.0,
+      "form": "step(11, '(((sqrt(10000) + (50 * sin(0))) + (ln((e ** 2)) * 25)) - (cos(0) * 1))', 149.0)"
     },
     {
       "predicate": "result",
       "args": [
         "actual"
       ],
-      "value": 119.0,
-      "form": "result(actual) = 119.0"
+      "value": 149.0,
+      "form": "result(actual) = 149.0"
     },
     {
       "predicate": "claimed",
@@ -409,38 +534,38 @@
         "claimed_value"
       ],
       "value": true,
-      "form": "incorrect(99.0) \u2190 \u00acequals(claimed, result) \u2227 result = 119.0"
+      "form": "incorrect(99.0) \u2190 \u00acequals(claimed, result) \u2227 result = 149.0"
     },
     {
       "predicate": "required_to_reach_target",
       "args": [
         "sqrt(10000)"
       ],
-      "value": 80.0,
-      "form": "required(sqrt(10000)...) = 80 (actual 100, discrepancy -20)"
+      "value": 50.0,
+      "form": "required(sqrt(10000)...) = 50 (actual 100, discrepancy -50)"
     },
     {
       "predicate": "required_to_reach_target",
       "args": [
-        "(log((e ** 2)) * 10)"
+        "(50 * sin(0))"
       ],
-      "value": 0.0,
-      "form": "required((log((e ** 2)) * 10)...) = 0 (actual 20, discrepancy -20)"
+      "value": -50.0,
+      "form": "required((50 * sin(0))...) = -50 (actual 0, discrepancy -50)"
     },
     {
       "predicate": "required_to_reach_target",
       "args": [
-        "(sqrt(10000) + (log((e ** 2)) * 10))"
+        "(sqrt(10000) + (50 * sin(0)))"
       ],
-      "value": 100.0,
-      "form": "required((sqrt(10000) + (log((e ** 2)) * 10))...) = 100 (actual 120, discrepancy -20)"
+      "value": 50.0,
+      "form": "required((sqrt(10000) + (50 * sin(0)))...) = 50 (actual 100, discrepancy -50)"
     }
   ],
   "reasoning_trace": [
     {
       "rule": "equals_target",
       "result": false,
-      "reason": "equation_value(119.0) != claimed_target(99.0)"
+      "reason": "equation_value(149.0) != claimed_target(99.0)"
     },
     {
       "inference": "verdict",
