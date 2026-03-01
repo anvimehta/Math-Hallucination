@@ -287,20 +287,37 @@ def _cli(argv: list[str]) -> int:
     Simple command-line interface.
 
     Usage:
+        # Non-interactive (target and question on CLI)
         python local_llm_math_checker.py <target> "<question_text>"
 
-    Example:
+        # Interactive (target only, then you'll be prompted for the question)
+        python local_llm_math_checker.py <target>
+
+    Examples:
         python local_llm_math_checker.py 6 "Use four 10s and basic operations to make 6."
+        python local_llm_math_checker.py 6
     """
-    if len(argv) < 3:
+    if len(argv) < 2:
         print("Usage: python local_llm_math_checker.py <target> \"<question_text>\"")
+        print("   or: python local_llm_math_checker.py <target>   # then enter question interactively")
         return 1
     try:
         target = float(argv[1])
     except ValueError:
         print(f"Target must be numeric, got: {argv[1]!r}")
         return 1
-    question_text = " ".join(argv[2:])
+    if len(argv) >= 3:
+        question_text = " ".join(argv[2:])
+    else:
+        # Interactive prompt for the question text
+        try:
+            question_text = input("Enter your math question for the LLM: ").strip()
+        except EOFError:
+            print("No question provided.")
+            return 1
+        if not question_text:
+            print("No question provided.")
+            return 1
 
     try:
         llm = call_llm(question_text)
