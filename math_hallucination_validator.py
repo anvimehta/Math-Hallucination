@@ -51,6 +51,9 @@ RESULTS_DIR = "wolfram_data"
 RESULTS_TABLE = "validation_results.csv"
 REASONING_LOG = "reasoning_log.json"
 NUMERIC_TOLERANCE = 1e-6
+# For word problems: accept if within this absolute OR relative (avoids marking "close enough" as hallucination)
+NUMERIC_ABSOLUTE_CLOSE = 0.01  # e.g. 519.99 vs 520
+NUMERIC_RELATIVE_CLOSE = 0.001  # 0.1% e.g. 519.5 vs 520
 
 # Early-college math question bank (minimal set)
 MATH_QUESTIONS = [
@@ -174,6 +177,32 @@ def extract_numbers(text: str) -> list[float]:
     return out
 
 
+def extract_answer_number(llm_answer: str) -> float | None:
+    """
+    Extract the single numeric answer the LLM intended (for display and comparison).
+    Prefers a number in an answer phrase (e.g. 'answer is 520', '520 hours', '= 520')
+    so we don't use a trailing unrelated number (e.g. '0' at end of text).
+    """
+    if not llm_answer or not llm_answer.strip():
+        return None
+    text = llm_answer.strip()
+    # Prefer number immediately after answer-like phrases (case-insensitive)
+    for pattern in (
+        r"(?:answer is|answer:|final answer|equals?|=\s*)\s*([-]?\d+\.?\d*(?:[eE][+-]?\d+)?)",
+        r"(\d+\.?\d*)\s*(?:hours?|minutes?|miles?|feet|units?)\s*(?:\.|$|\s+so\s|\s+therefore)",
+        r"(?:=\s*|→)\s*(\d+\.?\d*)",
+    ):
+        m = re.search(pattern, text, re.IGNORECASE)
+        if m:
+            try:
+                return float(m.group(1))
+            except ValueError:
+                pass
+    # Fallback: use last number (same as before)
+    nums = extract_numbers(text)
+    return nums[-1] if nums else None
+
+
 def normalize_expression(s: str) -> str:
     """Simple normalization for symbolic comparison (e.g. integrals, equations)."""
     if not s:
@@ -184,24 +213,46 @@ def normalize_expression(s: str) -> str:
     return s
 
 
-def numeric_match(wolfram_text: str, llm_text: str, tolerance: float = NUMERIC_TOLERANCE) -> tuple[bool, str]:
+def _numeric_close_enough(a: float, b: float) -> bool:
+    """True if a and b are within 'close enough' tolerance (abs or relative)."""
+    diff = abs(a - b)
+    if diff <= NUMERIC_TOLERANCE:
+        return True
+    mag = max(abs(a), abs(b), 1.0)
+    return diff <= max(NUMERIC_ABSOLUTE_CLOSE, NUMERIC_RELATIVE_CLOSE * mag)
+
+
+def numeric_match(
+    wolfram_text: str,
+    llm_text: str,
+    tolerance: float = NUMERIC_TOLERANCE,
+    llm_answer_value: float | None = None,
+) -> tuple[bool, str]:
     """
     Rule: numeric_match(a, b) iff the set of numbers in a and b agree within tolerance.
+    Uses strict tolerance for exact match, and looser 'close enough' (abs + relative)
+    to accept answers that are a few decimal places off.
+    If llm_answer_value is provided, use it as the LLM's answer for comparison (avoids
+    using a trailing unrelated number when the LLM wrote e.g. "520 hours" then "0").
     Returns (match, reason).
     """
     wa = extract_numbers(wolfram_text)
-    la = extract_numbers(llm_text)
+    if llm_answer_value is not None:
+        la = [llm_answer_value]
+    else:
+        la = extract_numbers(llm_text)
     if not wa and not la:
         return False, "no_numbers_in_both"
     if not wa:
         return False, "no_numbers_in_ground_truth"
     if not la:
         return False, "no_numbers_in_llm"
-    # Compare last/final numeric results often; or all if same count
     w_last, l_last = wa[-1], la[-1]
     if abs(w_last - l_last) <= tolerance:
         return True, f"numeric_match(last: {w_last} ~ {l_last})"
-    if len(wa) == len(la) and all(abs(a - b) <= tolerance for a, b in zip(wa, la)):
+    if _numeric_close_enough(w_last, l_last):
+        return True, f"numeric_match(last: {w_last} ~ {l_last} [close enough])"
+    if len(wa) == len(la) and all(_numeric_close_enough(a, b) for a, b in zip(wa, la)):
         return True, "numeric_match(all)"
     return False, f"numeric_mismatch(w={wa}, l={la})"
 
@@ -234,6 +285,8 @@ def relative_error_and_confidence(wolfram_text: str, llm_text: str) -> tuple[flo
     rel_err = abs(w_last - l_last) / abs(w_last)
     if rel_err <= NUMERIC_TOLERANCE:
         return rel_err, "high", f"Relative error ≈ {rel_err:.2e} (match)."
+    if _numeric_close_enough(w_last, l_last):
+        return rel_err, "high", f"Relative error ≈ {rel_err:.2%} (close enough)."
     if rel_err < 0.01:
         confidence = "medium"
         expl = f"Relative error ≈ {rel_err:.2%}; small numeric deviation."
@@ -983,7 +1036,9 @@ def apply_rules_and_deduce(question_id: str, ground: dict, llm_answer: str) -> t
     trace = []
     language_parts = []
 
-    num_ok, num_reason = numeric_match(gt_text, llm_answer)
+    # Use intended answer number when present (e.g. "520 hours") so we don't use a trailing "0"
+    llm_answer_value = extract_answer_number(llm_answer)
+    num_ok, num_reason = numeric_match(gt_text, llm_answer, llm_answer_value=llm_answer_value)
     trace.append({"rule": "numeric_match", "result": num_ok, "reason": num_reason})
     language_parts.append(f"Numeric comparison: {num_reason}.")
 
@@ -1006,6 +1061,18 @@ def apply_rules_and_deduce(question_id: str, ground: dict, llm_answer: str) -> t
 
     # Deduction via real FOPC: unification + resolution over Horn clauses
     verdict, fopc_proof = fopc_deduce_verdict(num_ok, sym_ok)
+    # Don't let symbolic match override a clear numeric mismatch (e.g. answer 0 vs ground truth 520)
+    gt_value = ground.get("decimal_value")
+    if (
+        verdict == "not_hallucinating"
+        and sym_ok
+        and not num_ok
+        and gt_value is not None
+        and llm_answer_value is not None
+        and not _numeric_close_enough(gt_value, llm_answer_value)
+    ):
+        verdict = "hallucinating"
+        fopc_proof = "symbolic_match_overridden_by_clear_numeric_mismatch"
     trace.append({
         "inference": "verdict",
         "predicate": verdict,
@@ -1294,34 +1361,260 @@ def validate_equation_claim(
 
 
 # -------------------------
-# Wolfram-friendly rephrasings for word problems (when natural language returns no result)
+# Local ground-truth solver (when Wolfram returns nothing)
+# Uses LLM to convert any word problem into a Python expression, then evaluates it.
 # -------------------------
-def _wolfram_friendly_query(word_problem: str) -> str | None:
-    """If the problem matches a known type, return a query Wolfram is more likely to answer."""
+_SAFE_EVAL_NAMESPACE: dict[str, Any] = {
+    "sqrt": lambda x: x**0.5,
+    "abs": abs,
+    "round": round,
+    "min": min,
+    "max": max,
+    "pi": math.pi,
+}
+_SAFE_EVAL_ALLOWED_NAMES = frozenset(_SAFE_EVAL_NAMESPACE.keys())
+
+
+def _safe_eval_expression(expr: str) -> float | None:
+    """
+    Safely evaluate a Python expression for SAT-style math.
+    Allows: numbers, +, -, *, /, **, sqrt, abs, round, min, max, pi.
+    Returns the numeric result or None on failure.
+    """
+    s = expr.strip()
+    s = re.sub(r"\s+", " ", s)
+    s = s.replace("\\times", "*").replace("\\div", "/").replace("÷", "/").replace("×", "*")
+    s = re.sub(r"math\.sqrt\s*\(", "sqrt(", s, flags=re.IGNORECASE)
+    s = re.sub(r"math\.pi\b", "pi", s, flags=re.IGNORECASE)
+    # Replace sqrt(x) with (x)**0.5 for AST allowlist (we still provide sqrt in namespace)
+    def _replace_sqrt(m):
+        inner = m.group(1)
+        return f"({inner})**0.5"
+    s = re.sub(r"sqrt\s*\(([^)]+)\)", _replace_sqrt, s, flags=re.IGNORECASE)
+    try:
+        tree = ast.parse(s, mode="eval")
+    except SyntaxError:
+        return None
+    allowed = {
+        ast.Expression, ast.BinOp, ast.UnaryOp, ast.Constant, ast.Call, ast.Name,
+        ast.Add, ast.Sub, ast.Mult, ast.Div, ast.FloorDiv, ast.Mod, ast.Pow,
+        ast.USub, ast.UAdd,
+    }
+    if hasattr(ast, "Num"):
+        allowed.add(ast.Num)
+    for node in ast.walk(tree):
+        if type(node) not in allowed:
+            return None
+        if isinstance(node, ast.Name):
+            if node.id not in _SAFE_EVAL_ALLOWED_NAMES:
+                return None
+        if isinstance(node, ast.Call):
+            if not isinstance(getattr(node, "func", None), ast.Name):
+                return None
+            if node.func.id not in _SAFE_EVAL_ALLOWED_NAMES:
+                return None
+    try:
+        return float(eval(s, {"__builtins__": {}}, _SAFE_EVAL_NAMESPACE))
+    except Exception:
+        return None
+
+
+def _extract_expression_or_number(text: str) -> str | None:
+    """Extract a Python expression or bare number from LLM output. Returns None if nothing usable."""
+    if not text:
+        return None
+    s = re.sub(r"^```\w*\n?", "", text)
+    s = re.sub(r"\n?```\s*$", "", s)
+    s = s.strip()
+    first = s.split("\n")[0].strip()
+    if not first:
+        return None
+    # Strip prefixes like "answer: ", "= ", "result: "
+    first = re.sub(r"^(?:answer|result|expression)\s*:\s*", "", first, flags=re.IGNORECASE)
+    first = re.sub(r"^=\s*", "", first)
+    first = first.strip()
+    # Remove trailing punctuation
+    first = re.sub(r"[.,;]\s*$", "", first)
+    return first if first else None
+
+
+def _llm_ground_truth_solver(word_problem: str) -> dict[str, Any] | None:
+    """
+    Ask the LLM to convert an SAT-style math question into a single Python expression,
+    then evaluate it to get ground truth. Handles word problems, unit conversions,
+    algebra, geometry. Used when Wolfram returns nothing.
+    """
+    api_key = os.environ.get("OPENAI_API_KEY")
+    if not api_key:
+        return None
+    prompt = (
+        "Convert this SAT math question into a single Python expression that computes the numeric answer. "
+        "Output ONLY the expression, nothing else. No explanation.\n\n"
+        "Allowed: numbers, +, -, *, /, **, parentheses, sqrt(x), abs(x), round(x), min(a,b), max(a,b), pi.\n\n"
+        "Examples:\n"
+        "- Word problem (meeting): 'cars 55 and 45 km/h, 300 km apart, when meet?' → 300/(55+45)\n"
+        "- Unit conversion: 'how many feet in 3 miles?' → 3*5280\n"
+        "- Unit conversion: '2.5 hours to minutes' → 2.5*60\n"
+        "- Rate: '60 mph for 2.5 hours, how far?' → 60*2.5\n"
+        "- Percent: '20% of 80' → 80*0.2\n"
+        "- Geometry: 'area of circle radius 5' → pi*5**2\n"
+        "- Algebra: 'if 2x+3=9, find x' → (9-3)/2\n\n"
+        f"Problem: {word_problem}"
+    )
+    system = "You output only a single mathematical expression. No words, no explanation."
+    try:
+        try:
+            from openai import OpenAI
+            client = OpenAI(api_key=api_key)
+            resp = client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[
+                    {"role": "system", "content": system},
+                    {"role": "user", "content": prompt},
+                ],
+                temperature=0.0,
+            )
+            text = (resp.choices[0].message.content or "").strip()
+        except ImportError:
+            import urllib.request
+            body = json.dumps({
+                "model": "gpt-4o-mini",
+                "messages": [
+                    {"role": "system", "content": system},
+                    {"role": "user", "content": prompt},
+                ],
+                "temperature": 0.0,
+            }).encode("utf-8")
+            req = urllib.request.Request(
+                "https://api.openai.com/v1/chat/completions",
+                data=body,
+                headers={"Content-Type": "application/json", "Authorization": f"Bearer {api_key}"},
+                method="POST",
+            )
+            with urllib.request.urlopen(req, timeout=30) as r:
+                data = json.loads(r.read().decode())
+            text = (data.get("choices") or [{}])[0].get("message", {}).get("content", "") or ""
+    except Exception:
+        return None
+    if not text:
+        return None
+    to_try: list[str] = []
+    candidate = _extract_expression_or_number(text)
+    if candidate:
+        to_try.append(candidate)
+    first = (text or "").split("\n")[0].strip()
+    if first and first not in to_try:
+        to_try.append(first)
+    for raw in to_try:
+        value = _safe_eval_expression(raw)
+        if value is not None and math.isfinite(value):
+            return {"raw_plaintext": str(value), "decimal_value": value}
+    # Fallback: LLM may have returned "360 minutes" or "The answer is 360" — use extracted numbers
+    nums = extract_numbers(text)
+    if nums:
+        value = nums[-1]
+        if math.isfinite(value):
+            return {"raw_plaintext": str(value), "decimal_value": value}
+    return None
+
+
+# -------------------------
+# Wolfram-friendly rephrasings for word problems (when natural language returns no result)
+# Returns (query_str, unit_str | None). Unit is appended to display only; computation is unitless.
+# -------------------------
+def _wolfram_friendly_query(word_problem: str) -> tuple[str | None, str | None]:
+    """If the problem matches a known type, return (query, unit). Unit is for display at the end."""
     q = word_problem.lower().strip()
     # Bat and ball: x + (x+1) = 1.10 → 2x + 1 = 1.10 → x = 0.05
     if "bat" in q and "ball" in q and ("1.10" in q or "1.10" in word_problem):
-        return "solve 2x+1=1.10 for x"
+        return ("solve 2x+1=1.10 for x", None)
     if "ball" in q and "1.10" in word_problem and "1 " in word_problem and "more" in q:
-        return "solve 2x+1=1.10 for x"
+        return ("solve 2x+1=1.10 for x", None)
     # Average speed: total dist / total time = 240/5 = 48
     if "average speed" in q and "60" in word_problem and "40" in word_problem:
-        return "(60*2 + 40*3) / 5"
+        return ("(60*2 + 40*3) / 5", None)
     if "60 mph" in q and "2 hours" in q and "40 mph" in q and "3 hours" in q:
-        return "average speed 240 miles in 5 hours"
+        return ("average speed 240 miles in 5 hours", None)
     # Double discount: 20% then 20% → 1 - 0.8*0.8 = 0.36 (36%)
     if "20%" in word_problem and "20%" in word_problem and ("equivalent" in q or "single" in q) and "discount" in q:
-        return "100 * (1 - 0.8*0.8)"
+        return ("100 * (1 - 0.8*0.8)", None)
     # Stock drops 50%: what % rise to get back? (1 - 0.5)/0.5 = 1 = 100% (not 50%)
     if "50%" in word_problem and ("drop" in q or "drops" in q) and ("rise" in q or "gain" in q) and ("back" in q or "original" in q):
-        return "(1 - 0.5) / 0.5"
+        return ("(1 - 0.5) / 0.5", None)
     # Lily pad: doubles every day, 48 days to cover pond → half covered the day before = 47 (not 24)
     if ("lily" in q or "doubles" in q or "double" in q) and "48" in word_problem and ("half" in q or "halfway" in q):
-        return "48 - 1"
+        return ("48 - 1", None)
     # Snail: 10 ft wall, up 3 per day down 2 per night → 8 days (many say 10)
     if "snail" in q and "10" in word_problem and "3" in word_problem and "2" in word_problem:
-        return "(10 - 3) / (3 - 2) + 1"
-    return None
+        return ("(10 - 3) / (3 - 2) + 1", None)
+    # Meeting problem: time = distance / (v1+v2). Unit-aware: if distance in miles and speeds in km/hr, convert miles->km.
+    if "toward" in q or "meet" in q:
+        # Capture speed values and unit (km/h vs mph)
+        speed_kmh = re.findall(
+            r"(\d+(?:\.\d+)?)\s*(?:km/hr|km/h)\b",
+            word_problem,
+            re.IGNORECASE,
+        )
+        speed_mph = re.findall(
+            r"(\d+(?:\.\d+)?)\s*mph\b",
+            word_problem,
+            re.IGNORECASE,
+        )
+        # Distance: capture value and whether it's miles or km
+        dist_miles = re.search(
+            r"(\d+(?:\.\d+)?)\s*miles?\s*(?:apart|away|from\s+each\s+other|between\s+them)",
+            word_problem,
+            re.IGNORECASE,
+        )
+        dist_km = re.search(
+            r"(\d+(?:\.\d+)?)\s*(?:kms?)\s*(?:apart|away|from\s+each\s+other|between\s+them)",
+            word_problem,
+            re.IGNORECASE,
+        )
+        d_val, dist_unit = None, None
+        if dist_miles:
+            d_val, dist_unit = float(dist_miles.group(1)), "miles"
+        elif dist_km:
+            d_val, dist_unit = float(dist_km.group(1)), "km"
+        if d_val is not None and d_val > 0:
+            MILES_TO_KM = 1.60934
+            if len(speed_kmh) >= 2:
+                v1, v2 = float(speed_kmh[0]), float(speed_kmh[1])
+                if v1 > 0 and v2 > 0:
+                    if dist_unit == "miles":
+                        # Convert distance to km so units match km/hr
+                        expr = f"({d_val}*{MILES_TO_KM})/({v1}+{v2})"
+                    else:
+                        expr = f"{d_val}/({v1}+{v2})"
+                    return (expr, "hours")
+            if len(speed_mph) >= 2:
+                v1, v2 = float(speed_mph[0]), float(speed_mph[1])
+                if v1 > 0 and v2 > 0:
+                    if dist_unit == "miles":
+                        expr = f"{d_val}/({v1}+{v2})"
+                    else:
+                        # distance in km, speeds in mph: convert km to miles for consistency
+                        expr = f"({d_val}/{MILES_TO_KM})/({v1}+{v2})"
+                    return (expr, "hours")
+    # Three siblings share total; oldest=2*middle, middle=3*youngest → youngest = total/10
+    if "share" in q and ("twice" in q or "2 times" in q) and ("three times" in q or "3 times" in q):
+        if "youngest" in q or "middle" in q or "oldest" in q:
+            total_m = re.search(r"share\s*\$?\s*(\d+(?:\.\d+)?)", word_problem, re.IGNORECASE)
+            if not total_m:
+                total_m = re.search(r"\$?\s*(\d+(?:\.\d+)?)\s*(?:dollars?|\$)?", word_problem)
+            if total_m:
+                total = float(total_m.group(1))
+                if total > 0:
+                    # Ratios: youngest : middle : oldest = 1 : 3 : 6 → total = 10*youngest
+                    if "youngest" in q and ("how much" in q or "youngest" in q and "get" in q or "receive" in q or "child" in q):
+                        return (f"{total}/10", None)  # youngest share
+                    if "middle" in q and ("how much" in q or "middle" in q and ("get" in q or "receive" in q)):
+                        return (f"{total}*3/10", None)  # middle share
+                    if "oldest" in q and ("how much" in q or "oldest" in q and ("get" in q or "receive" in q)):
+                        return (f"{total}*6/10", None)  # oldest share
+                    # Default: question often asks for youngest
+                    return (f"{total}/10", None)
+    return (None, None)
 
 
 # -------------------------
@@ -1561,11 +1854,30 @@ def validate_word_problem(
                 ground = get_ground_truth(word_problem)
                 # If still no plaintext, try a Wolfram-friendly rephrase for known problem types
                 if not (ground.get("raw_plaintext") or "").strip():
-                    alt = _wolfram_friendly_query(word_problem)
+                    alt, _ = _wolfram_friendly_query(word_problem)
                     if alt:
                         ground_alt = get_ground_truth(alt)
                         if (ground_alt.get("raw_plaintext") or "").strip():
                             ground = ground_alt
+            # Prefer local pattern-based ground truth when we have a match (unit-aware meeting, three-siblings share, etc.)
+            alt, unit = _wolfram_friendly_query(word_problem)
+            if alt and not alt.strip().lower().startswith("solve"):
+                val = _safe_eval_expression(alt)
+                if val is not None and math.isfinite(val):
+                    display = f"{val} {unit}" if unit else str(val)
+                    ground = {"raw_plaintext": display, "decimal_value": val, "pods": []}
+            if not (ground.get("raw_plaintext") or "").strip():
+                # Wolfram still returned nothing: try local formula then LLM solver
+                local = None
+                if alt and not alt.strip().lower().startswith("solve"):
+                    val = _safe_eval_expression(alt)
+                    if val is not None and math.isfinite(val):
+                        display = f"{val} {unit}" if unit else str(val)
+                        local = {"raw_plaintext": display, "decimal_value": val}
+                if local is None:
+                    local = _llm_ground_truth_solver(word_problem)
+                if local:
+                    ground = {"raw_plaintext": local["raw_plaintext"], "decimal_value": local.get("decimal_value"), "pods": []}
         except Exception as e:
             verdict, error_proof = fopc_deduce_error_verdict(wolfram_failed=True)
             return {
@@ -1611,9 +1923,8 @@ def validate_word_problem(
     reasoning_narrative = _narrative_reasoning_for_word_problem(
         word_problem, verdict, gt_text, answer_used or "", trace, extras, use_llm_cleanup=use_llm_cleanup
     )
-    # Concise numeric value from answer (so UI can show "10" instead of "7 \\text{ feet}+3 \\text{ feet}=10")
-    nums_answer = extract_numbers(answer_used or "")
-    answer_value = nums_answer[-1] if nums_answer else None
+    # Concise numeric value from answer (prefer number in "answer is X" / "X hours" over trailing digits)
+    answer_value = extract_answer_number(answer_used or "")
     return {
         "question_id": "word_problem",
         "question": word_problem,
