@@ -69,6 +69,9 @@
       border-radius: var(--radius);
       font-size: 0.9375rem;
       line-height: 1.5;
+      word-wrap: break-word;
+      overflow-wrap: break-word;
+      white-space: pre-wrap;
     }
     .msg.user {
       background: var(--surface);
@@ -115,6 +118,9 @@
     }
     .verdict.hallucinating { background: rgba(248, 81, 73, 0.25); color: #ff7b72; }
     .verdict.not_hallucinating { background: rgba(63, 185, 80, 0.2); color: #3fb950; }
+    .verdict-banner { font-size: 1.15rem; font-weight: 700; padding: 10px 16px; border-radius: var(--radius); display: inline-block; margin-bottom: 16px; }
+    .verdict-banner.hallucinating { background: rgba(248, 81, 73, 0.25); color: #ff7b72; }
+    .verdict-banner.not_hallucinating { background: rgba(63, 185, 80, 0.2); color: #3fb950; }
     .mode-cards {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
@@ -215,6 +221,8 @@
     .result-table.step-table td { padding: 6px 10px; }
     .result-table.step-table .col-step { width: 2.5em; text-align: right; color: var(--text-muted); }
     .result-table.step-table .col-value { text-align: right; min-width: 5em; }
+    .result-table-trace .trace-reason { white-space: pre-wrap; word-wrap: break-word; overflow-wrap: break-word; max-width: 1px; }
+    .result-table-trace td { vertical-align: top; }
     .section-title { font-weight: 600; margin: 14px 0 6px; font-size: 0.9375rem; }
     .section-title:first-of-type { margin-top: 0; }
     .diverges-summary { margin-bottom: 8px; color: var(--text-muted); font-size: 0.875rem; }
@@ -384,26 +392,67 @@
           html += '</p>';
           container.innerHTML = html;
         } else {
-          let html = `<span class="verdict ${r.verdict === 'hallucinating' ? 'hallucinating' : 'not_hallucinating'}">${r.verdict}</span><br>`;
-          if (r.reasoning_narrative) html += `<p class="section-title">Reasoning</p><div class="narrative-reasoning">${escapeHtml(r.reasoning_narrative)}</div>`;
+          // Friendlier layout for word-problem results
+          const isHallucinating = r.verdict === 'hallucinating';
+          const verdictLabel = isHallucinating ? 'The answer does NOT match the ground truth.' : 'The answer matches the ground truth.';
+          const answerLabel = r.answer_was_provided ? 'Answer you provided' : 'LLM answer';
           const gtDisplay = r.ground_truth_value != null ? formatNum(r.ground_truth_value) : escapeHtml((r.ground_truth || '').slice(0, 300));
-          html += `<p><strong>Ground truth:</strong> ${gtDisplay}</p>`;
-          const answerLabel = r.answer_was_provided ? 'Answer checked (no LLM)' : 'LLM answer';
           const ansDisplay = r.answer_value != null ? formatNum(r.answer_value) : escapeHtml((r.llm_answer || '').slice(0, 300));
-          html += `<p><strong>${answerLabel}:</strong> ${ansDisplay}</p>`;
-          html += `<p>Numeric match: ${r.numeric_match}; Symbolic match: ${r.symbolic_match}</p>`;
-          if (r.relative_error != null) html += `<p>Relative error: ${formatNum(r.relative_error)}</p>`;
-          if (r.confidence) html += `<p>Evidence: ${escapeHtml(r.confidence)}</p>`;
-          if (r.abduced_causes && r.abduced_causes.length) html += `<p>Abduced causes: ${escapeHtml(r.abduced_causes.join(', '))}</p>`;
-          html += `<p><strong>Rule-based check:</strong></p><p>${escapeHtml(r.reasoning_explanation || '')}</p>`;
+
+          let html = '';
+
+          // Question
+          if (r.question) {
+            html += `<p class="section-title">Question</p>`;
+            html += `<p>${escapeHtml(r.question)}</p>`;
+          }
+
+          // Prominent verdict at top (before Summary)
+          const verdictBannerText = isHallucinating ? 'Hallucinating' : 'Not Hallucinating';
+          html += `<p><span class="verdict-banner ${isHallucinating ? 'hallucinating' : 'not_hallucinating'}">${verdictBannerText}</span></p>`;
+
+          // Summary as table (same style as Detailed rule trace) — verdict removed from table
+          const numText = r.numeric_match ? 'Yes — the main numbers agree.' : 'No — the main numbers differ.';
+          const symText = r.symbolic_match ? 'Yes — the expressions look equivalent.' : 'No — the expressions look different.';
+          html += `<p class="section-title">Summary</p>`;
+          html += '<table class="result-table"><thead><tr><th>Check</th><th>Result</th></tr></thead><tbody>';
+          html += `<tr><td>Ground truth answer</td><td>${gtDisplay}</td></tr>`;
+          html += `<tr><td>${answerLabel}</td><td>${ansDisplay}</td></tr>`;
+          html += `<tr><td>Do the numbers match?</td><td>${numText}</td></tr>`;
+          html += `<tr><td>Do the expressions match?</td><td>${symText}</td></tr>`;
+          if (r.relative_error != null) {
+            html += `<tr><td>Relative difference</td><td>${formatNum(r.relative_error)}</td></tr>`;
+          }
+          if (r.confidence) {
+            html += `<tr><td>Evidence level</td><td>${escapeHtml(humanize(r.confidence))}</td></tr>`;
+          }
+          html += '</tbody></table>';
+
+          // Short narrative explanation
+          if (r.reasoning_narrative) {
+            html += `<p class="section-title">Why this verdict?</p>`;
+            html += `<div class="narrative-reasoning">${escapeHtml(r.reasoning_narrative)}</div>`;
+          } else if (r.reasoning_explanation) {
+            html += `<p class="section-title">Why this verdict?</p>`;
+            html += `<div class="narrative-reasoning">${escapeHtml(r.reasoning_explanation)}</div>`;
+          }
+
+          // Optional extra details for advanced users
+          if (r.abduced_causes && r.abduced_causes.length) {
+            html += `<p class="section-title">Possible issues we detected</p>`;
+            const issues = Array.isArray(r.abduced_causes) ? r.abduced_causes.map(function(c) { return typeof c === 'string' ? humanize(c) : humanize(c.form || c.hypothesis || ''); }) : [];
+            html += `<p>${escapeHtml(issues.join(', '))}</p>`;
+          }
           if (r.reasoning_trace && r.reasoning_trace.length) {
-            html += '<p class="section-title">Reasoning steps</p><table class="result-table"><thead><tr><th>Step</th><th>Result</th><th>Reason</th></tr></thead><tbody>';
+            html += '<p class="section-title">Detailed rule trace (optional)</p><table class="result-table result-table-trace"><thead><tr><th>Step</th><th>Result</th><th>Reason</th></tr></thead><tbody>';
             r.reasoning_trace.forEach(function(tr) {
-              const res = tr.result === true ? 'Yes' : (tr.result === false ? 'No' : (tr.result != null ? escapeHtml(String(tr.result)) : '—'));
-              html += `<tr><td>${escapeHtml(tr.step || '')}</td><td>${res}</td><td>${escapeHtml((tr.reason || '').slice(0, 120))}${(tr.reason && tr.reason.length > 120) ? '…' : ''}</td></tr>`;
+              const res = tr.result === true ? 'Yes' : (tr.result === false ? 'No' : (tr.result != null ? escapeHtml(humanize(String(tr.result))) : '—'));
+              const reason = (tr.reason || tr.premise || '');
+              html += `<tr><td>${escapeHtml(humanize(tr.step || ''))}</td><td>${res}</td><td class="trace-reason">${escapeHtml(humanize(reason))}</td></tr>`;
             });
             html += '</tbody></table>';
           }
+
           container.innerHTML = html;
         }
         return;
@@ -449,6 +498,10 @@
       }
     }
 
+    function humanize(s) {
+      if (s == null || s === '') return '';
+      return String(s).replace(/_/g, ' ');
+    }
     function escapeHtml(s) {
       const div = document.createElement('div');
       div.textContent = s;
@@ -468,7 +521,7 @@
     }
 
     function getUserSummary(mode, body) {
-      if (mode === 'word_problem') return (body.word_problem || '').slice(0, 80) + ((body.word_problem || '').length > 80 ? '…' : '');
+      if (mode === 'word_problem') return (body.word_problem || '').trim() || 'Word problem';
       if (mode === 'equation') return body.expression ? `Target ${body.target}: ${(body.expression || '').slice(0, 50)}…` : `Ask equation for target ${body.target}`;
       return 'Run';
     }
@@ -530,7 +583,8 @@
     document.getElementById('btn-submit-word_problem').addEventListener('click', () => submit('word_problem'));
     document.getElementById('btn-submit-equation').addEventListener('click', () => submit('equation'));
 
-    addMessage('assistant', 'Choose a mode above, then fill in the fields and run. No command-line flags needed.');
+    addMessage('assistant', 'Choose a mode below, then fill in the fields and tap Run');
   </script>
 </body>
 </html>
+
