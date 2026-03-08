@@ -347,6 +347,82 @@ def build_inference_chain(gt_text: str, llm_answer: str, num_ok: bool, sym_ok: b
     return chain
 
 
+# Superscript/subscript digit conversion
+_SUPER_TO_DIGIT = str.maketrans("⁰¹²³⁴⁵⁶⁷⁸⁹", "0123456789")
+_SUB_TO_DIGIT = str.maketrans("₀₁₂₃₄₅₆₇₈₉", "0123456789")
+
+
+def _convert_superscript_to_power(s: str) -> str:
+    """Convert superscript digits to **exp. Handles: number², e², (expr)², sin²(x)."""
+    # 1. Parenthesized expression + superscript: (a+b)² -> (a+b)**2
+    while True:
+        m = re.search(r"\)([⁰¹²³⁴⁵⁶⁷⁸⁹]+)(?=[^⁰¹²³⁴⁵⁶⁷⁸⁹]|$)", s)
+        if not m:
+            break
+        close_idx = m.start()
+        super_part = m.group(1)
+        exp = super_part.translate(_SUPER_TO_DIGIT)
+        depth = 1
+        open_idx = close_idx - 1
+        while open_idx >= 0 and depth > 0:
+            if s[open_idx] == ")":
+                depth += 1
+            elif s[open_idx] == "(":
+                depth -= 1
+            open_idx -= 1
+        open_idx += 1
+        inner = s[open_idx + 1 : close_idx]
+        s = s[: open_idx + 1] + inner + ")**" + exp + s[m.end() :]
+    # 2. Function + superscript + args: sin²(x) -> (sin(x))**2
+    for func in ("sin", "cos", "tan", "log", "ln", "sqrt"):
+        pat = re.compile(
+            r"\b" + re.escape(func) + r"([⁰¹²³⁴⁵⁶⁷⁸⁹]+)\s*\(",
+            re.IGNORECASE,
+        )
+        while True:
+            m = pat.search(s)
+            if not m:
+                break
+            start = m.start()
+            arg_start = m.end() - 1  # position of (
+            super_part = m.group(1)
+            exp = super_part.translate(_SUPER_TO_DIGIT)
+            depth = 1
+            i = arg_start + 1
+            while i < len(s) and depth > 0:
+                if s[i] == "(":
+                    depth += 1
+                elif s[i] == ")":
+                    depth -= 1
+                i += 1
+            arg_end = i - 1
+            args = s[arg_start + 1 : arg_end]
+            repl = f"({func}({args}))**{exp}"
+            s = s[:start] + repl + s[arg_end + 1 :]
+    # 3. Number + superscript: 2⁸ -> 2**8
+    s = re.sub(
+        r"(\d+(?:\.\d+)?)([⁰¹²³⁴⁵⁶⁷⁸⁹]+)",
+        lambda m: m.group(1) + "**" + m.group(2).translate(_SUPER_TO_DIGIT),
+        s,
+    )
+    # 4. Identifier + superscript: e², pi², x² -> base**exp
+    s = re.sub(
+        r"\b([a-zA-Z_]\w*)([⁰¹²³⁴⁵⁶⁷⁸⁹]+)\b",
+        lambda m: m.group(1) + "**" + m.group(2).translate(_SUPER_TO_DIGIT),
+        s,
+    )
+    return s
+
+
+def _convert_subscript_to_normal(s: str) -> str:
+    """Convert subscript digits to normal: x₁ -> x1 (for display/parsing)."""
+    return re.sub(
+        r"([a-zA-Z_]?\w*)([₀₁₂₃₄₅₆₇₈₉]+)",
+        lambda m: m.group(1) + m.group(2).translate(_SUB_TO_DIGIT),
+        s,
+    )
+
+
 # -------------------------
 # Step-by-step breakdown (order of operations) + FOPC
 # -------------------------
@@ -366,6 +442,8 @@ def normalize_expression_input(expr: str) -> str:
         s = s.replace(code, "")
     # Unicode math symbols -> ASCII (same as in _normalize_expr_for_ast so Wolfram and parser agree)
     s = s.replace("\u2212", "-")   # − (minus)
+    s = s.replace("\u2013", "-")   # – (en-dash, often used as minus)
+    s = s.replace("\u2014", "-")   # — (em-dash)
     s = s.replace("\u00d7", "*")   # ×
     s = s.replace("\u22c5", "*")   # ⋅ (dot)
     s = s.replace("\u2217", "*")   # ∗ (asterisk operator)
@@ -378,6 +456,19 @@ def normalize_expression_input(expr: str) -> str:
     s = re.sub(r"\be\s*(\d+)\b", r"e**\1", s, flags=re.IGNORECASE)
     # "2 6" (single-digit space single-digit) often means 2^6 when pasted; make it explicit
     s = re.sub(r"\b(\d)\s+(\d)\b", r"\1**\2", s)
+    # Unicode √ (U+221A): √4489 -> sqrt(4489), √(expr) -> sqrt(expr)
+    s = re.sub(r"\u221a\s*(\d+(?:\.\d+)?)\b", r"sqrt(\1)", s)
+    s = re.sub(r"\u221a\s*\(", "sqrt(", s)
+    # Wolfram bracket notation: Sqrt[x] -> sqrt(x), Log[x] -> log(x), etc.
+    for _ in range(5):  # handle nested e.g. Sqrt[Sqrt[4]]
+        prev = s
+        s = re.sub(r"\b(Sqrt|Log|Cos|Sin|Tan)\s*\[([^\[\]]*)\]", lambda m: m.group(1).lower() + "(" + m.group(2) + ")", s, flags=re.IGNORECASE)
+        if s == prev:
+            break
+    # Subscript digits ₀₁₂₃₄₅₆₇₈₉ -> normal digits (x₁ -> x1)
+    s = _convert_subscript_to_normal(s)
+    # Superscript digits: (a+b)², sin²(x), 2⁸, e², x² -> **exp
+    s = _convert_superscript_to_power(s)
     # Collapse multiple spaces/newlines to single space
     s = re.sub(r"\s+", " ", s)
     return s.strip()
@@ -388,6 +479,8 @@ def _normalize_expr_for_ast(expr: str) -> str:
     s = expr.strip()
     # Unicode math symbols -> ASCII (e.g. pasted from Wolfram or rich text)
     s = s.replace("\u2212", "-")   # − (minus)
+    s = s.replace("\u2013", "-")   # – (en-dash, often used as minus)
+    s = s.replace("\u2014", "-")   # — (em-dash)
     s = s.replace("\u00d7", "*")  # ×
     s = s.replace("\u22c5", "*")  # ⋅ (dot)
     s = s.replace("\u2217", "*")  # ∗ (asterisk operator)
@@ -395,8 +488,22 @@ def _normalize_expr_for_ast(expr: str) -> str:
     # Replace ^ with ** (careful: don't break **)
     s = re.sub(r"\^", "**", s)
     s = re.sub(r"\bln\s*\(", "log(", s, flags=re.IGNORECASE)
-    # Greek π (U+03C0) / Π (U+03A0) as identifier → pi so visit_Name recognizes it
+    s = re.sub(r"\blog\s*\(", "log(", s, flags=re.IGNORECASE)
+    # Unicode √ (U+221A): √4489 -> sqrt(4489)
+    s = re.sub(r"\u221a\s*(\d+(?:\.\d+)?)\b", r"sqrt(\1)", s)
+    s = re.sub(r"\u221a\s*\(", "sqrt(", s)
+    # Greek π (U+03C0) / Π (U+03A0) → pi (before superscript so π² -> pi**2)
     s = s.replace("\u03c0", "pi").replace("\u03a0", "pi")
+    # Wolfram bracket notation (in case not done by normalize_expression_input)
+    for _ in range(3):
+        prev = s
+        s = re.sub(r"\b(Sqrt|Log|Cos|Sin|Tan)\s*\[([^\[\]]*)\]", lambda m: m.group(1).lower() + "(" + m.group(2) + ")", s, flags=re.IGNORECASE)
+        if s == prev:
+            break
+    # Subscript digits -> normal
+    s = _convert_subscript_to_normal(s)
+    # Superscript digits: (a+b)², sin²(x), 2⁸, e², x² -> **exp
+    s = _convert_superscript_to_power(s)
     # Implicit multiplication: number( -> number*(  and )( -> )*(
     s = re.sub(r"(\d)\s*\(", r"\1*(", s)
     s = re.sub(r"\)\s*\(", ")*(", s)
