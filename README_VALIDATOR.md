@@ -1,6 +1,6 @@
 # Math LLM Hallucination Validator
 
-## How to use
+## How to use from the terminal
 
 **Prerequisites**
 - Python 3 with `requests` (for Wolfram). Optional: `openai` for ChatGPT (`pip install openai`).
@@ -49,7 +49,7 @@
 - **Explicit inference chain (FOPC)**: premises P1–P4 (ground_truth, llm_answer, numeric_match, symbolic_match), rule R, conclusion C (verdict).
 - **Step-by-step (equation-claim)**: order-of-operations breakdown and FOPC step(·, ·, ·), result(·), incorrect(·).
 
-## Steps (assignment outline)
+## Steps
 
 1. **Question bank** — Define early-college math questions (algebra, calculus, trig, etc.) in code or a single data file.
 2. **Ground truth** — For each question, call Wolfram Alpha API (reuse `wolfram_alpha.py`), parse primary pod for the canonical answer.
